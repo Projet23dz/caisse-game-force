@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>CashPro — Game Force</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'IBM Plex Sans Arabic','Inter',sans-serif}
+a{color:inherit}a:hover{color:inherit}
+.num{font-family:Inter,sans-serif;font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:18px}
+.tab{height:44px;padding:0 20px;border-radius:12px;border:1px solid var(--line);background:var(--s1);color:var(--mu);font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+.tab.on{background:var(--br);color:var(--brTx);border-color:transparent}
+.qa{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 8px;border-radius:14px;border:1px solid var(--line);background:var(--s1);color:var(--tx);font:inherit;font-size:14px;font-weight:600;cursor:pointer;min-height:44px}
+.qa:hover,.qa:focus-visible{border-color:var(--br)}
+.btn{height:44px;padding:0 18px;border-radius:12px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:var(--s2);color:var(--tx)}
+.btn.pri{background:var(--br);color:var(--brTx);border-color:transparent}
+</style>
+</helmet>
+<div style="{{vars}};direction:rtl;min-height:100vh;background:var(--bg);color:var(--tx);display:flex;flex-wrap:wrap;align-items:stretch">
+<div style="flex:1 1 240px;max-width:270px;min-width:240px;display:flex">
+<dc-import name="Sidebar" active="business" theme="{{theme}}" hint-size="100%,900px"></dc-import>
+</div>
+<main style="flex:999 1 560px;min-width:0;box-sizing:border-box;padding:28px 32px 40px;display:flex;flex-direction:column;gap:22px">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:16px">
+<a href="Main.dc.html" aria-label="رجوع إلى لوحة التحكم" style="width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--s1);display:flex;align-items:center;justify-content:center;text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></a>
+<svg width="56" height="56" viewBox="0 0 44 44" role="img" aria-label="شعار Game Force"><rect x="0" y="0" width="44" height="44" rx="12" fill="#FFFFFF"></rect><g transform="rotate(45 22 22)"><rect x="10" y="10" width="24" height="24" rx="4" fill="#1F2A7A"></rect><path d="M14 10 H34 V30 Z" fill="#E30613"></path></g><circle cx="22" cy="22" r="5.5" fill="none" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="22" cy="22" r="2" fill="#FFFFFF"></circle></svg>
+<div style="display:flex;flex-direction:column;gap:2px">
+<h1 style="margin:0;font-size:28px;font-weight:700">Game Force</h1>
+<p style="margin:0;color:var(--mu);font-size:15px">محل الألعاب و PlayStation · التسيير المالي</p>
+</div>
+<div style="margin-inline-start:auto;display:flex;gap:10px;flex-wrap:wrap">
+<button type="button" class="btn">تصدير</button>
+<button type="button" class="btn pri">+ عملية جديدة</button>
+</div>
+</header>
+
+<div role="tablist" aria-label="أقسام النشاط" style="display:flex;gap:10px;flex-wrap:wrap">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+<button type="button" role="tab" aria-selected="{{t.sel}}" class="tab {{t.cls}}" onClick="{{t.pick}}">{{t.label}}</button>
+</sc-for>
+</div>
+
+<sc-if value="{{isOverview}}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:22px">
+<section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+<div class="card" style="grid-column:span 2;min-width:0;padding:28px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;background:var(--br2);border-color:transparent;position:relative;overflow:hidden;color:#FFFFFF">
+<div style="display:flex;flex-direction:column;gap:6px;z-index:1">
+<span style="font-size:16px;color:#C9CDEA">رصيد الصندوق (الخزينة)</span>
+<span style="font-size:44px;font-weight:700;letter-spacing:-0.5px"><span class="num">412 000</span> دج</span>
+<span style="align-self:flex-start;font-size:14px;font-weight:600;padding:6px 12px;border-radius:999px;background:rgba(52,211,153,.18);color:#6EE7B7">↗ <span class="num">+10.2%</span> هذا الشهر</span>
+</div>
+<div style="display:flex;gap:12px;margin-inline-start:auto;z-index:1;flex-wrap:wrap">
+<div style="padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.08);display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#C9CDEA">البنك</span><span style="font-size:20px;font-weight:700"><span class="num">305 000</span> دج</span></div>
+<div style="padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.08);display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#C9CDEA">CCP</span><span style="font-size:20px;font-weight:700"><span class="num">125 000</span> دج</span></div>
+</div>
+<svg aria-hidden="true" width="260" height="200" viewBox="0 0 260 200" style="position:absolute;left:-40px;top:-30px;opacity:.16"><g transform="rotate(45 130 100)"><rect x="60" y="30" width="140" height="140" rx="18" fill="#E30613"></rect></g></svg>
+</div>
+<div class="card" style="padding:20px;display:flex;flex-direction:column;gap:12px">
+<h2 style="margin:0;font-size:16px">إجراءات سريعة</h2>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+<button type="button" class="qa"><span aria-hidden="true" style="color:var(--inc);font-size:20px">↗</span>إيراد</button>
+<button type="button" class="qa"><span aria-hidden="true" style="color:var(--exp);font-size:20px">↘</span>مصروف</button>
+<button type="button" class="qa"><span aria-hidden="true" style="color:var(--pur);font-size:20px">▣</span>شراء</button>
+<button type="button" class="qa"><span aria-hidden="true" style="color:var(--trf);font-size:20px">⇄</span>تحويل</button>
+<button type="button" class="qa"><span aria-hidden="true" style="color:var(--mu);font-size:20px">▭</span>شيك</button>
+<button type="button" class="qa"><span aria-hidden="true" style="color:var(--mu);font-size:20px">◔</span>تسبيق أجر</button>
+</div>
+</div>
+</section>
+
+<section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+<div class="card" style="padding:18px;display:flex;align-items:center;gap:14px"><span aria-hidden="true" style="width:44px;height:44px;border-radius:12px;background:var(--s2);color:var(--inc);display:flex;align-items:center;justify-content:center;font-size:20px">↗</span><div style="display:flex;flex-direction:column"><span style="font-size:13px;color:var(--mu)">مبيعات اليوم</span><span style="font-size:20px;font-weight:700"><span class="num">121 000</span> دج</span></div></div>
+<div class="card" style="padding:18px;display:flex;align-items:center;gap:14px"><span aria-hidden="true" style="width:44px;height:44px;border-radius:12px;background:var(--s2);color:var(--pur);display:flex;align-items:center;justify-content:center;font-size:20px">▣</span><div style="display:flex;flex-direction:column"><span style="font-size:13px;color:var(--mu)">مشتريات اليوم</span><span style="font-size:20px;font-weight:700"><span class="num">12 000</span> دج</span></div></div>
+<div class="card" style="padding:18px;display:flex;align-items:center;gap:14px"><span aria-hidden="true" style="width:44px;height:44px;border-radius:12px;background:var(--s2);color:var(--exp);display:flex;align-items:center;justify-content:center;font-size:20px">↘</span><div style="display:flex;flex-direction:column"><span style="font-size:13px;color:var(--mu)">مصاريف اليوم</span><span style="font-size:20px;font-weight:700"><span class="num">18 500</span> دج</span></div></div>
+<div class="card" style="padding:18px;display:flex;align-items:center;gap:14px"><span aria-hidden="true" style="width:44px;height:44px;border-radius:12px;background:var(--s2);color:var(--trf);display:flex;align-items:center;justify-content:center;font-size:20px">▭</span><div style="display:flex;flex-direction:column"><span style="font-size:13px;color:var(--mu)">شيكات في الحافظة</span><span style="font-size:20px;font-weight:700"><span class="num">2</span> · <span class="num">165 000</span> دج</span></div></div>
+</section>
+
+<section class="card" style="padding:22px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<h2 style="margin:0;font-size:18px">تطوّر الرصيد الإجمالي</h2>
+<div style="margin-inline-start:auto;display:flex;gap:6px">
+<button type="button" class="btn" style="height:36px;padding:0 12px;font-size:13px">7 أيام</button>
+<button type="button" class="btn pri" style="height:36px;padding:0 12px;font-size:13px">30 يوماً</button>
+<button type="button" class="btn" style="height:36px;padding:0 12px;font-size:13px">سنة</button>
+</div>
+</div>
+<svg viewBox="0 0 900 220" role="img" aria-label="أعمدة تطوّر الرصيد خلال 30 يوماً" style="width:100%;height:auto;direction:ltr">
+<g stroke="var(--line)"><path d="M40 20H890"></path><path d="M40 85H890"></path><path d="M40 150H890"></path><path d="M40 190H890"></path></g>
+<g fill="var(--mu)" font-size="11" font-family="Inter"><text x="0" y="24">900k</text><text x="0" y="89">800k</text><text x="0" y="154">700k</text></g>
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="30">
+<rect x="{{b.x}}" y="{{b.y}}" width="18" height="{{b.h}}" rx="5" fill="{{b.fill}}"></rect>
+</sc-for>
+</svg>
+</section>
+</div>
+</sc-if>
+
+<sc-if value="{{isSettings}}" hint-placeholder-val="{{ false }}">
+<section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px">
+<div class="card" style="padding:24px;display:flex;flex-direction:column;gap:16px">
+<h2 style="margin:0;font-size:18px">شعار النشاط</h2>
+<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+<div style="width:120px;height:120px;border-radius:20px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;border:1px solid var(--line)">
+<svg width="96" height="96" viewBox="0 0 44 44" role="img" aria-label="الشعار الحالي"><g transform="rotate(45 22 22)"><rect x="9" y="9" width="26" height="26" rx="4" fill="#1F2A7A"></rect><path d="M13 9 H35 V31 Z" fill="#E30613"></path></g><circle cx="22" cy="22" r="6" fill="none" stroke="#FFFFFF" stroke-width="2"></circle><circle cx="22" cy="22" r="2.2" fill="#FFFFFF"></circle></svg>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px;flex:1;min-width:180px">
+<label style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:18px;border:1.5px dashed var(--line);border-radius:14px;cursor:pointer;text-align:center">
+<span style="font-size:14px;font-weight:600">اسحب صورة الشعار هنا أو اختر ملفاً</span>
+<span style="font-size:12px;color:var(--mu)">PNG · JPG · SVG — حتى 5 ميغا</span>
+<input type="file" accept=".png,.jpg,.jpeg,.svg" style="position:absolute;width:1px;height:1px;opacity:0">
+</label>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn">قصّ وتوسيط</button><button type="button" class="btn">الرجوع للشعار السابق</button></div>
+</div>
+</div>
+<p style="margin:0;font-size:13px;color:var(--mu)">يظهر الشعار في البطاقات، رأس التقارير، وملفات PDF و Excel المصدّرة. كل تغيير يُسجَّل في سجل التعديلات.</p>
+</div>
+<div class="card" style="padding:24px;display:flex;flex-direction:column;gap:14px">
+<h2 style="margin:0;font-size:18px">الحسابات المالية</h2>
+<sc-for list="{{accounts}}" as="a" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:var(--s2)">
+<span style="font-size:15px;font-weight:600">{{a.name}}</span><span style="font-size:12px;color:var(--mu)">{{a.kind}}</span>
+<span style="margin-inline-start:auto;font-weight:700"><span class="num">{{a.bal}}</span> دج</span>
+</div>
+</sc-for>
+<button type="button" class="btn" style="align-self:flex-start">+ إضافة حساب</button>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{isOther}}" hint-placeholder-val="{{ false }}">
+<div class="card" style="padding:40px;text-align:center;color:var(--mu)">هذا القسم يستعمل نفس تصميم شاشة <a href="Transactions.dc.html" style="color:var(--br)">العمليات</a> والتقارير، مُصفّى على Game Force فقط.</div>
+</sc-if>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["gf-dark","gf-light","gold"],"default":"gf-dark"},"$preview":{"width":1440,"height":1180}}'>
+const THEMES = {
+  'gf-dark':  {bg:'#0A0E27',side:'#0E1433',s1:'#141A3D',s2:'#1C2452',line:'rgba(255,255,255,0.08)',tx:'#F5F5F7',mu:'#A9AEC9',br:'#E30613',br2:'#1F2A7A',brTx:'#FFFFFF',glow:'rgba(227,6,19,0.28)',inc:'#34D399',exp:'#FB7185',pur:'#60A5FA',trf:'#FBBF24'},
+  'gf-light': {bg:'#F3F4F9',side:'#FFFFFF',s1:'#FFFFFF',s2:'#EDEFF7',line:'rgba(31,42,122,0.12)',tx:'#121633',mu:'#50567A',br:'#D0050F',br2:'#1F2A7A',brTx:'#FFFFFF',glow:'rgba(208,5,15,0.22)',inc:'#15803D',exp:'#BE123C',pur:'#1D4ED8',trf:'#B45309'},
+  'gold':     {bg:'#0B0B10',side:'#101017',s1:'#16161E',s2:'#20202B',line:'rgba(255,255,255,0.08)',tx:'#F5F5F7',mu:'#A8A5B5',br:'#D4A23A',br2:'#4A3A16',brTx:'#141414',glow:'rgba(212,162,58,0.25)',inc:'#34D399',exp:'#FB7185',pur:'#60A5FA',trf:'#FBBF24'}
+};
+function themeVars(k) {
+  const t = THEMES[k] || THEMES['gf-dark'];
+  return Object.keys(t).map((n) => '--' + n + ':' + t[n]).join(';');
+}
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'overview' }; }
+  renderVals() {
+    const theme = this.props.theme ?? 'gf-dark';
+    const tab = this.state.tab;
+    const tabs = [['overview', 'نظرة عامة'], ['transactions', 'العمليات'], ['reports', 'التقارير'], ['settings', 'الإعدادات']]
+      .map(([id, label]) => ({ label, cls: id === tab ? 'on' : '', sel: id === tab ? 'true' : 'false', pick: () => this.setState({ tab: id }) }));
+    const bars = [];
+    for (let i = 0; i < 30; i++) {
+      const v = 760000 + 70000 * Math.sin(i / 4) + i * 3000;
+      const h = Math.max(20, (v - 640000) / 300000 * 170);
+      bars.push({ x: 48 + i * 28, y: 190 - h, h, fill: i === 29 ? 'var(--br)' : 'var(--pur)' });
+    }
+    return {
+      theme, vars: themeVars(theme), tabs, bars,
+      isOverview: tab === 'overview', isSettings: tab === 'settings', isOther: tab === 'transactions' || tab === 'reports',
+      accounts: [
+        { name: 'الخزينة الرئيسية', kind: 'نقدي · فتح/إغلاق يومي', bal: '412 000' },
+        { name: 'الحساب البنكي', kind: 'BNA', bal: '305 000' },
+        { name: 'CCP', kind: 'بريد الجزائر', bal: '125 000' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

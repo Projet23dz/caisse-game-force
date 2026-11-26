@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>CashPro — القائمة الجانبية</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'IBM Plex Sans Arabic','Inter',sans-serif}
+a{color:inherit}a:hover{color:inherit}
+.cp-nav{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 14px;border-radius:12px;text-decoration:none;color:var(--mu);font-size:15px;font-weight:500;transition:background .18s,color .18s}
+.cp-nav:hover{background:var(--s2);color:var(--tx)}
+.cp-nav.on{background:var(--br);color:var(--brTx);box-shadow:0 8px 24px var(--glow)}
+.cp-nav svg{width:20px;height:20px;flex:none}
+</style>
+</helmet>
+<nav aria-label="القائمة الرئيسية" style="{{vars}};direction:rtl;box-sizing:border-box;width:100%;min-height:100%;background:var(--side);border-inline-start:1px solid var(--line);padding:24px 16px;display:flex;flex-direction:column;gap:6px;color:var(--tx)">
+<div style="display:flex;align-items:center;gap:12px;padding:4px 8px 22px">
+<svg width="44" height="44" viewBox="0 0 44 44" role="img" aria-label="شعار Game Force">
+<g transform="rotate(45 22 22)">
+<rect x="7" y="7" width="30" height="30" rx="5" fill="#1F2A7A"></rect>
+<path d="M12 7 H37 V32 Z" fill="#E30613"></path>
+</g>
+<circle cx="22" cy="22" r="7" fill="none" stroke="#FFFFFF" stroke-width="2.4"></circle>
+<circle cx="22" cy="22" r="2.6" fill="#FFFFFF"></circle>
+</svg>
+<div style="display:flex;flex-direction:column;line-height:1.15">
+<span style="font-family:Inter,sans-serif;font-weight:700;font-size:22px;letter-spacing:-0.3px">Cash<span style="color:var(--br)">Pro</span></span>
+<span style="font-size:12px;color:var(--mu)">تسيير الخزينة</span>
+</div>
+</div>
+<a href="Main.dc.html" class="cp-nav {{c.main}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>لوحة التحكم</a>
+<a href="Business.dc.html" class="cp-nav {{c.business}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"></path><path d="M5 21V8l7-5 7 5v13"></path><path d="M9 21v-6h6v6"></path></svg>المؤسسات</a>
+<a href="Transactions.dc.html" class="cp-nav {{c.transactions}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16"></path><path d="M3 8l4-4 4 4"></path><path d="M17 20V4"></path><path d="M21 16l-4 4-4-4"></path></svg>العمليات</a>
+<a href="Treasury.dc.html" class="cp-nav {{c.treasury}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="14" rx="2.5"></rect><path d="M16 13h2"></path><path d="M2 10h20"></path><path d="M6 6V4h12v2"></path></svg>الخزينة</a>
+<a href="#" class="cp-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 14h6"></path><path d="M15 10h3"></path></svg>الشيكات</a>
+<a href="#" class="cp-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"></path><path d="M17 8h5"></path><path d="M19.5 5.5v5"></path></svg>الأجور والتسبيقات</a>
+<a href="#" class="cp-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"></path><path d="M10 20V4"></path><path d="M16 20v-7"></path><path d="M22 20H2"></path></svg>التقارير</a>
+<a href="#" class="cp-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>المستخدمون والصلاحيات</a>
+<a href="#" class="cp-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"></path><path d="M4 12h16"></path><path d="M4 18h10"></path></svg>سجل التعديلات</a>
+<a href="#" class="cp-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>الإعدادات</a>
+<div style="flex:1;min-height:24px"></div>
+<div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:var(--s1);border:1px solid var(--line)">
+<div aria-hidden="true" style="width:40px;height:40px;border-radius:50%;background:var(--br2);color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-weight:700">م</div>
+<div style="display:flex;flex-direction:column;flex:1;line-height:1.3">
+<span style="font-size:14px;font-weight:600">المدير العام</span>
+<span style="font-size:12px;color:var(--mu)">Admin</span>
+</div>
+<button type="button" aria-label="تبديل الوضع الليلي والنهاري" style="width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--s2);color:var(--tx);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></button>
+</div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["main","business","transactions","treasury"],"default":"main"},"theme":{"editor":"enum","options":["gf-dark","gf-light","gold"],"default":"gf-dark"},"$preview":{"width":260,"height":900}}'>
+const THEMES = {
+  'gf-dark':  {bg:'#0A0E27',side:'#0E1433',s1:'#141A3D',s2:'#1C2452',line:'rgba(255,255,255,0.08)',tx:'#F5F5F7',mu:'#A9AEC9',br:'#E30613',br2:'#1F2A7A',brTx:'#FFFFFF',glow:'rgba(227,6,19,0.28)',inc:'#34D399',exp:'#FB7185',pur:'#60A5FA',trf:'#FBBF24'},
+  'gf-light': {bg:'#F3F4F9',side:'#FFFFFF',s1:'#FFFFFF',s2:'#EDEFF7',line:'rgba(31,42,122,0.12)',tx:'#121633',mu:'#50567A',br:'#D0050F',br2:'#1F2A7A',brTx:'#FFFFFF',glow:'rgba(208,5,15,0.22)',inc:'#15803D',exp:'#BE123C',pur:'#1D4ED8',trf:'#B45309'},
+  'gold':     {bg:'#0B0B10',side:'#101017',s1:'#16161E',s2:'#20202B',line:'rgba(255,255,255,0.08)',tx:'#F5F5F7',mu:'#A8A5B5',br:'#D4A23A',br2:'#4A3A16',brTx:'#141414',glow:'rgba(212,162,58,0.25)',inc:'#34D399',exp:'#FB7185',pur:'#60A5FA',trf:'#FBBF24'}
+};
+function themeVars(k) {
+  const t = THEMES[k] || THEMES['gf-dark'];
+  return Object.keys(t).map((n) => '--' + n + ':' + t[n]).join(';');
+}
+class Component extends DCLogic {
+  renderVals() {
+    const a = this.props.active ?? 'main';
+    const c = {};
+    ['main', 'business', 'transactions', 'treasury'].forEach((k) => { c[k] = k === a ? 'on' : ''; });
+    return { vars: themeVars(this.props.theme ?? 'gf-dark'), c };
+  }
+}
+</script>
+</body>
+</html>

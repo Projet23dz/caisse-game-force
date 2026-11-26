@@ -1,0 +1,468 @@
+name: CashPro — tests
+
+# Économie de minutes GitHub Actions : à chaque envoi sur main, seuls les tests (Linux) tournent.
+# Les installateurs Windows / Android (coûteux) se construisent par « Run workflow » (manuel) ou une étiquette v*.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publier une version (GitHub Release v<version de desktop/package.json>)"
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    name: Tests (PostgreSQL ${{ matrix.pg }}, Node.js ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { pg: 16, node: 22 }   # serveur réel
+          - { pg: 15, node: 16.17.1 }   # version d'essai Windows 7 (Node.js d'Electron 22)
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Base de données — 62 tests des règles métier
+        run: |
+          export PGOPTIONS="-c cashpro.skip_init=on"   # configuration de départ (une caisse par activité) pour les tests
+          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE cashpro_test"
+          for f in database/[0-9][0-9]_*.sql; do
+            psql -q -v ON_ERROR_STOP=1 -d cashpro_test -f $f
+          done
+          # les scripts 07+ doivent être rejouables (mise à jour d'une base existante)
+          for f in $(ls database/[0-9][0-9]_*.sql | grep -E "/(0[7-9]|[1-9][0-9])_"); do psql -q -v ON_ERROR_STOP=1 -d cashpro_test -f $f; done
+          psql -q -d cashpro_test -c "ALTER ROLE cashpro_app PASSWORD 'ci'"
+          psql -q -v ON_ERROR_STOP=1 -d cashpro_test -f database/tests/setup_test_data.sql
+          PGOPTIONS= PGUSER=cashpro_app PGPASSWORD=ci psql -d cashpro_test -f database/tests/test_rules.sql | tee rules.txt
+          grep -q "62 / 62 tests réussis" rules.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: API — compilation (TypeScript 7)
+        working-directory: api
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - uses: actions/setup-node@v4
+        if: matrix.node != 22
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: API — tests d'intégration (Node.js ${{ matrix.node }})
+        working-directory: api
+        env:
+          TEST_ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
+        run: |
+          node --version
+          if [ "${{ matrix.node }}" = "22" ]; then npm test; exit; fi
+          # Node.js 16 (Electron 22) : node:test y est incomplet → test de fonctionnement du serveur
+          node -e "import('pdfkit').then(m => { const d = new (m.default ?? m)(); d.text('ok'); d.end(); console.log('pdfkit OK'); })"
+          DATABASE_URL=postgres://cashpro_app:ci@localhost:5432/cashpro_test JWT_SECRET=$(openssl rand -hex 32) HOST=127.0.0.1 PORT=4600 DATA_DIR=$PWD/data \
+            node dist/server.js > api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4600/api/health && break; sleep 1; done
+          cat api.log
+          curl -sf -X POST http://127.0.0.1:4600/api/auth/login -H 'content-type: application/json' -d '{"username":"admin","password":"CashPro@2026"}' | grep -q token
+          curl -sf http://127.0.0.1:4600/ | grep -q CashPro
+          echo "Serveur OK sous Node.js $(node --version)"
+
+  android-app:
+    name: Application Android (APK)
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Construire l'APK
+        working-directory: android-app
+        env:
+          # clé de signature officielle : chiffrée dans le dépôt (signing/), phrase secrète dans les secrets GitHub
+          CASHPRO_SIGNING_PASSPHRASE: ${{ secrets.CASHPRO_SIGNING_PASSPHRASE }}
+        run: |
+          if [ -n "$CASHPRO_SIGNING_PASSPHRASE" ]; then
+            P="$CASHPRO_SIGNING_PASSPHRASE" openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+              -in signing/cashpro-release.jks.enc -out "$RUNNER_TEMP/release.jks" -pass env:P
+            export CASHPRO_KEYSTORE="$RUNNER_TEMP/release.jks" CASHPRO_KEY_ALIAS=cashpro
+            export CASHPRO_KEYSTORE_PASSWORD="$CASHPRO_SIGNING_PASSPHRASE" CASHPRO_KEY_PASSWORD="$CASHPRO_SIGNING_PASSPHRASE"
+            echo "Signature : clé officielle CashPro"
+          else
+            echo "::error::Secret CASHPRO_SIGNING_PASSPHRASE absent : APK non publié"; exit 1
+          fi
+          gradle assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk ../CashPro.apk
+          "$ANDROID_HOME"/build-tools/$(ls "$ANDROID_HOME"/build-tools | sort -V | tail -1)/apksigner verify --print-certs ../CashPro.apk | grep -E "DN|SHA-256"
+          apksigner_out=$("$ANDROID_HOME"/build-tools/$(ls "$ANDROID_HOME"/build-tools | sort -V | tail -1)/apksigner verify --print-certs ../CashPro.apk)
+          echo "$apksigner_out" | grep -q "O=Game Force, L=Annaba" || { echo "::error::APK non signé avec la clé officielle"; exit 1; }
+          ls -lh ../CashPro.apk
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: CashPro-Android-APK
+          path: CashPro.apk
+          retention-days: 30
+      - name: Publier (version « android-latest »)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view android-latest >/dev/null 2>&1 || gh release create android-latest --prerelease --title "CashPro — Android" --notes "CashPro.apk : application Android (accès à distance via l’application Tailscale officielle)."
+          gh release upload android-latest CashPro.apk --clobber
+
+  desktop:
+    name: Application Windows (.exe)
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Construire l'installateur CashPro
+        working-directory: desktop
+        run: |
+          npm install --no-audit --no-fund
+          npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CashPro-Setup-Windows
+          path: desktop/release/*.exe
+          retention-days: 30
+      - name: Publier la version (tag v* ou lancement manuel « release »)
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          case "$TAG" in v*) ;; *) TAG="v$(node -p "require('./desktop/package.json').version")" ;; esac
+          bash .github/release-upload.sh "$TAG" desktop/release/*.exe
+
+  desktop-win7:
+    name: Application Windows 7 / 8 (32 et 64 bits)
+    if: (github.event_name == 'workflow_dispatch' && inputs.release) || startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Construire l'installateur Windows 7 (Electron 22, dernier compatible Windows 7)
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund electron@22.3.27
+          npx electron-builder --win --config electron-builder.win7.json --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CashPro-Setup-Windows7
+          path: desktop/release-win7/CashPro-Setup-Win7-*.exe
+          retention-days: 30
+
+  win7-trial:
+    name: Version d'essai Windows 7 (PostgreSQL 15 + Electron 22, portable)
+    if: (github.event_name == 'workflow_dispatch' && inputs.release) || startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: API + interface (production)
+        working-directory: api
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          npm prune --omit=dev
+
+      - name: Fenêtre CashPro (Electron 22, Windows 7)
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund electron@22.3.27
+          npx electron-builder --win --x64 --dir --config electron-builder.win7-trial.json --publish never
+
+      - name: Assembler le dossier d'essai (PostgreSQL 15)
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $b = "CashPro-Essai-Win7"
+          New-Item -ItemType Directory -Force "$b/api", "$b/database", "$b/pgsql", "$b/client", "$b/app" | Out-Null
+          Copy-Item api/dist, api/node_modules, api/package.json "$b/api" -Recurse
+          Copy-Item client/public "$b/client" -Recurse
+          Copy-Item database/[0-9][0-9]_*.sql "$b/database"
+          Copy-Item desktop/win7-demo/* $b
+          Copy-Item desktop/release-trial/win-unpacked/* "$b/app" -Recurse
+          # PostgreSQL 15 (dernière version majeure compatible Windows 7)
+          $ok = $false
+          foreach ($v in 20..8) {
+            $u = "https://get.enterprisedb.com/postgresql/postgresql-15.$v-1-windows-x64-binaries.zip"
+            try { Invoke-WebRequest $u -OutFile pg.zip -UseBasicParsing; $ok = $true; Write-Host "PostgreSQL 15.$v"; break } catch { }
+          }
+          if (-not $ok) { throw "Binaires PostgreSQL 15 introuvables" }
+          Expand-Archive pg.zip pg-x
+          Copy-Item pg-x/pgsql/bin, pg-x/pgsql/lib, pg-x/pgsql/share "$b/pgsql" -Recurse
+          Get-ChildItem "$b/pgsql/lib" -Include *.lib, *.a -Recurse | Remove-Item -Force
+          Get-ChildItem "$b/pgsql/bin" -Filter *.pdb -Recurse | Remove-Item -Force
+          "{0:N0} Mo" -f ((Get-ChildItem $b -Recurse | Measure-Object Length -Sum).Sum / 1MB)
+
+      - name: Tester le lancement (Node.js d'Electron 22 + PostgreSQL 15)
+        shell: pwsh
+        run: |
+          $b = (Resolve-Path "CashPro-Essai-Win7").Path
+          $env:PGPASSWORD = $null; Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+          $env:ELECTRON_RUN_AS_NODE = "1"
+          $p = Start-Process "$b/app/CashPro.exe" -ArgumentList "`"$b/demo.js`" --no-ui" -PassThru -RedirectStandardOutput trial-out.txt -RedirectStandardError trial-err.txt
+          $ok = $false
+          for ($i = 0; $i -lt 120; $i++) {
+            try { $h = Invoke-RestMethod http://127.0.0.1:4600/api/health; if ($h.app -eq 'CashPro') { $ok = $true; break } } catch { }
+            Start-Sleep 2
+          }
+          Get-Content trial-out.txt, trial-err.txt -ErrorAction SilentlyContinue
+          if (-not $ok) { Get-Content "$b/data/logs/*" -ErrorAction SilentlyContinue; throw "Version d'essai : l'API ne démarre pas" }
+          $l = Invoke-RestMethod http://127.0.0.1:4600/api/auth/login -Method Post -ContentType 'application/json' -Body '{"username":"admin","password":"CashPro@2026"}'
+          if (-not $l.token) { throw "Connexion admin impossible" }
+          & "$b/app/CashPro.exe" -e "console.log('Node ' + process.version)"
+          Stop-Process -Id $p.Id -Force
+          Get-Process CashPro -ErrorAction SilentlyContinue | Stop-Process -Force
+          & "$b/pgsql/bin/pg_ctl.exe" stop -D "$b/data/pgdata" -m fast
+          Remove-Item "$b/data" -Recurse -Force
+          Compress-Archive -Path $b -DestinationPath CashPro-Essai-Win7.zip -CompressionLevel Optimal
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CashPro-Essai-Windows7
+          path: CashPro-Essai-Win7.zip
+          retention-days: 30
+
+  android:
+    name: Serveur d'essai Android (Termux)
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Assembler CashPro-Android.tar.gz
+        run: |
+          cd api && npm install --no-audit --no-fund && npm run build && npm prune --omit=dev && cd ..
+          b=cashpro-android
+          mkdir -p $b/api $b/client $b/database
+          cp -r api/dist api/node_modules api/package.json $b/api/
+          cp -r client/public $b/client/
+          cp database/[0-9][0-9]_*.sql $b/database/
+          cp desktop/win7-demo/demo.js android/start.sh android/LISEZ-MOI.txt $b/
+          # aucun module natif : le paquet fonctionne tel quel sur Android (arm64)
+          if find $b/api/node_modules -name '*.node' | grep -q .; then echo "Module natif trouvé"; exit 1; fi
+          tar czf CashPro-Android.tar.gz $b
+          ls -lh CashPro-Android.tar.gz
+      - name: Tester le lanceur (PostgreSQL + Node.js 22, Linux)
+        run: |
+          sudo apt-get install -y -qq postgresql >/dev/null
+          PGBIN=$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)
+          mkdir t && tar xzf CashPro-Android.tar.gz -C t
+          CASHPRO_PG_BIN=$PGBIN node t/cashpro-android/demo.js --no-ui > out.txt 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:4600/api/health && break; sleep 2; done
+          cat out.txt
+          curl -sf -X POST http://127.0.0.1:4600/api/auth/login -H 'content-type: application/json' -d '{"username":"admin","password":"CashPro@2026"}' | grep -q token
+          curl -sf http://127.0.0.1:4600/ | grep -q CashPro
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CashPro-Android
+          path: CashPro-Android.tar.gz
+          retention-days: 30
+      - name: Publier (version « android-latest »)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view android-latest >/dev/null 2>&1 || gh release create android-latest --prerelease --title "CashPro — essai Android" --notes "Serveur d'essai Android (Termux). Voir LISEZ-MOI.txt dans l'archive."
+          gh release upload android-latest CashPro-Android.tar.gz --clobber
+
+  server:
+    name: Installateur serveur complet (PostgreSQL + base + API + application)
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: API + interface (production)
+        working-directory: api
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          npm prune --omit=dev
+
+      - name: Installateur des postes (fourni par le serveur pour la mise à jour automatique)
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund
+          npm run dist
+          # latest.yml (format electron-builder) : version, fichier, SHA-512 en base64, taille
+          $exe = Get-Item release/CashPro-Setup-*.exe | Select-Object -First 1
+          $ver = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $sha = [Convert]::ToBase64String([Security.Cryptography.SHA512]::Create().ComputeHash([IO.File]::ReadAllBytes($exe.FullName)))
+          @("version: $ver", "files:", "  - url: $($exe.Name)", "    sha512: $sha", "    size: $($exe.Length)",
+            "path: $($exe.Name)", "sha512: $sha", "releaseDate: '$((Get-Date).ToUniversalTime().ToString('o'))'") |
+            Set-Content release/latest.yml -Encoding ascii
+          Get-Content release/latest.yml
+          Get-ChildItem release | Format-Table Name, Length
+
+      - name: Préparer le paquet serveur (Node.js + PostgreSQL 16 inclus)
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $b = "desktop/server-bundle"
+          New-Item -ItemType Directory -Force "$b/api", "$b/client", "$b/database", "$b/setup", "$b/node", "$b/pgsql", "$b/updates/client" | Out-Null
+          Copy-Item api/dist, api/node_modules, api/package.json "$b/api" -Recurse
+          Copy-Item client/public "$b/client" -Recurse
+          Copy-Item database/[0-9][0-9]_*.sql "$b/database"
+          Copy-Item desktop/server/setup-server.ps1, desktop/server/uninstall-server.ps1, desktop/server/run-update.ps1, server-setup/backup.ps1, server-setup/restore.ps1 "$b/setup"
+          # installateur des postes + latest.yml (version, SHA-512) : servis par /api/updates/client
+          Copy-Item desktop/release/latest.yml, desktop/release/CashPro-Setup-*.exe "$b/updates/client"
+          Remove-Item desktop/release -Recurse -Force
+          # Node.js 22 (node.exe seul)
+          $sums = (Invoke-WebRequest https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt -UseBasicParsing).Content
+          $line = ($sums -split "`n" | Where-Object { $_ -match 'node-v[\d.]+-win-x64\.zip' } | Select-Object -First 1).Trim()
+          $hash, $zip = $line -split '\s+'
+          Invoke-WebRequest "https://nodejs.org/dist/latest-v22.x/$zip" -OutFile node.zip -UseBasicParsing
+          if ((Get-FileHash node.zip -Algorithm SHA256).Hash -ne $hash.ToUpper()) { throw "Empreinte Node.js invalide" }
+          Expand-Archive node.zip node-x
+          Copy-Item (Get-ChildItem node-x -Recurse -Filter node.exe | Select-Object -First 1).FullName "$b/node/"
+          Write-Host "Node.js : $zip"
+          # PostgreSQL 16 (binaires officiels EDB, dernière version disponible)
+          $ok = $false
+          foreach ($v in 20..8) {
+            $u = "https://get.enterprisedb.com/postgresql/postgresql-16.$v-1-windows-x64-binaries.zip"
+            try { Invoke-WebRequest $u -OutFile pg.zip -UseBasicParsing; $ok = $true; Write-Host "PostgreSQL 16.$v"; break } catch { }
+          }
+          if (-not $ok) { throw "Binaires PostgreSQL 16 introuvables" }
+          Expand-Archive pg.zip pg-x
+          Copy-Item pg-x/pgsql/bin, pg-x/pgsql/lib, pg-x/pgsql/share "$b/pgsql" -Recurse
+          Get-ChildItem "$b/pgsql/lib" -Include *.lib, *.a -Recurse | Remove-Item -Force
+          Get-ChildItem "$b/pgsql/bin" -Filter *.pdb -Recurse | Remove-Item -Force
+          "{0:N0} Mo" -f ((Get-ChildItem $b -Recurse | Measure-Object Length -Sum).Sum / 1MB)
+
+      - name: Tester l'installation réelle sur Windows (installation, mise à jour, sauvegarde)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $b = "desktop/server-bundle"
+          # Cas réels : %TEMP% en chemin court 8.3 (nom d'utilisateur avec espace, ex. « palm 1 »)
+          # et reste d'une installation interrompue (pgdata initialisé, configuration absente).
+          fsutil 8dot3name set C: 0 | Out-Null
+          New-Item -ItemType Directory -Force "C:\Users Test Espace\Temp Dossier" | Out-Null
+          $short = (cmd /c 'for %I in ("C:\Users Test Espace\Temp Dossier") do @echo %~sI').Trim()
+          Write-Host "TEMP court : $short"
+          $env:TEMP = $short; $env:TMP = $short
+          & "$b/pgsql/bin/initdb.exe" -D C:\CashPro\pgdata -U postgres -E UTF8 --no-locale -A trust | Out-Null
+          if (Test-Path C:\CashPro\config\cashpro.env) { throw "état de départ inattendu" }
+          # ancien Tailscale intégré (≤ 1.1.x) : sa tâche doit être retirée par l'installation
+          Register-ScheduledTask -TaskName "CashPro Tailscale" -Action (New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c exit 0") -Trigger (New-ScheduledTaskTrigger -AtStartup) -User SYSTEM | Out-Null
+          powershell -NoProfile -ExecutionPolicy Bypass -File "$b/setup/setup-server.ps1" -Root $b
+          if ($LASTEXITCODE -ne 0) { Get-ChildItem C:\CashPro\logs\install-*.log | Get-Content -Tail 30; Get-Content C:\CashPro\logs\api.log -ErrorAction SilentlyContinue; throw "setup-server failed" }
+          if (-not (Get-ChildItem C:\CashPro -Directory -Filter "pgdata-echec-*")) { throw "installation interrompue non déplacée" }
+          if (-not (Test-Path C:\CashPro\updates\client\latest.yml)) { throw "paquet des postes absent" }
+          $cu = Invoke-RestMethod http://127.0.0.1:4600/api/updates/client
+          Write-Host "Postes : CashPro $($cu.version) ($($cu.file))"
+          $env:TEMP = "$env:RUNNER_TEMP"; $env:TMP = "$env:RUNNER_TEMP"
+          $l = Invoke-RestMethod http://127.0.0.1:4600/api/auth/login -Method Post -ContentType 'application/json' -Body '{"username":"admin","password":"CashPro@2026"}'
+          if (-not $l.token -or -not $l.user.mustChangePassword) { throw "Connexion admin inattendue" }
+          $ui = Invoke-WebRequest http://127.0.0.1:4600/ -UseBasicParsing
+          if ($ui.Content -notmatch 'CashPro') { throw "Interface non servie" }
+          Get-Service CashPro-PostgreSQL | Format-List Name, Status, StartType
+          Get-ScheduledTask -TaskName "CashPro API", "CashPro - Sauvegarde quotidienne" | Format-Table TaskName, State
+          # mise à jour : arrêt + réinstallation, les données doivent rester
+          powershell -NoProfile -ExecutionPolicy Bypass -File "$b/setup/uninstall-server.ps1" -Root $b
+          powershell -NoProfile -ExecutionPolicy Bypass -File "$b/setup/setup-server.ps1" -Root $b
+          if ($LASTEXITCODE -ne 0) { Get-Content C:\CashPro\logs\api.log -ErrorAction SilentlyContinue; throw "reinstall failed" }
+          $l2 = Invoke-RestMethod http://127.0.0.1:4600/api/auth/login -Method Post -ContentType 'application/json' -Body '{"username":"admin","password":"CashPro@2026"}'
+          if (-not $l2.token) { throw "Base perdue après mise à jour" }
+          # sauvegarde avec le compte de sauvegarde
+          $port = ((Get-Content C:\CashPro\config\cashpro.env) -match '^PG_PORT=' -replace 'PG_PORT=','').Trim()
+          $env:PGPASSFILE = "C:\Windows\System32\config\systemprofile\AppData\Roaming\postgresql\pgpass.conf"
+          powershell -NoProfile -ExecutionPolicy Bypass -File "$b/setup/backup.ps1" -PgBin (Resolve-Path "$b/pgsql/bin").Path -Port $port
+          if ($LASTEXITCODE -ne 0) { Get-Content C:\CashPro\backups\backup.log; throw "sauvegarde échouée" }
+          Get-ChildItem C:\CashPro\backups -Recurse -Filter cashpro.dump | Format-Table FullName, Length
+          # API : adresses du serveur (administrateur, après changement du mot de passe)
+          $cp = Invoke-RestMethod http://127.0.0.1:4600/api/auth/change-password -Method Post -ContentType 'application/json' -Headers @{ Authorization = "Bearer $($l2.token)" } -Body '{"currentPassword":"CashPro@2026","newPassword":"Ci-Test-2026!"}'
+          $net = Invoke-RestMethod http://127.0.0.1:4600/api/admin/network -Headers @{ Authorization = "Bearer $($cp.token)" }
+          $net | ConvertTo-Json -Compress -Depth 4 | Write-Host
+          if (-not $net.addresses) { throw "API /admin/network : aucune adresse" }
+          if (Get-ScheduledTask -TaskName "CashPro Tailscale" -ErrorAction SilentlyContinue) { throw "ancienne tâche Tailscale intégrée encore présente" }
+          powershell -NoProfile -ExecutionPolicy Bypass -File "$b/setup/uninstall-server.ps1" -Root $b
+
+      - name: Construire CashPro-Server-Setup.exe
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund
+          npx electron-builder --win --x64 --config electron-builder.server.json --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CashPro-Server-Setup-Windows
+          path: desktop/release/CashPro-Server-Setup-*.exe
+          retention-days: 30
+
+      - name: Publier la version (tag v* ou lancement manuel « release »)
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          case "$TAG" in v*) ;; *) TAG="v$(node -p "require('./desktop/package.json').version")" ;; esac
+          bash .github/release-upload.sh "$TAG" desktop/release/CashPro-Server-Setup-*.exe

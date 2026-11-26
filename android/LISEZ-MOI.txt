@@ -1,0 +1,14 @@
+CashPro — serveur D'ESSAI sur Android (Termux) — pour tester uniquement
+======================================================================
+1. Installez Termux depuis F-Droid (pas Play Store).
+2. Téléchargez CashPro-Android.tar.gz dans « Download » du téléphone.
+3. Dans Termux :
+     termux-setup-storage
+     tar xzf ~/storage/downloads/CashPro-Android.tar.gz -C ~
+     bash ~/cashpro-android/start.sh
+4. Chrome : http://127.0.0.1:4600 — admin / CashPro@2026
+   Autres appareils du WiFi : bash ~/cashpro-android/start.sh --wifi
+5. Arrêt : Ctrl+C dans Termux. Données : ~/cashpro-android/data
+   Mise à jour : refaire l'étape 3 (les données sont conservées).
+
+نسخة تجريبية للسيرفر على Android عبر Termux — للتجربة فقط.

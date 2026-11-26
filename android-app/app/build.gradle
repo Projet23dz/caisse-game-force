@@ -1,0 +1,38 @@
+plugins { id "com.android.application" }
+
+// Signature officielle : clé déchiffrée par la CI (secret GitHub CASHPRO_SIGNING_PASSPHRASE).
+// Sans elle (compilation locale), l'APK est signé avec la clé de débogage d'Android Studio.
+def ks = System.getenv("CASHPRO_KEYSTORE")
+
+android {
+    namespace "dz.gameforce.cashpro"
+    compileSdk 35
+    defaultConfig {
+        applicationId "dz.gameforce.cashpro"
+        minSdk 24
+        targetSdk 35
+        versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "1") as int)
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        ndk { abiFilters "arm64-v8a", "x86_64" }
+    }
+    signingConfigs {
+        if (ks) {
+            release {
+                storeFile file(ks)
+                storePassword System.getenv("CASHPRO_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("CASHPRO_KEY_ALIAS") ?: "cashpro"
+                keyPassword System.getenv("CASHPRO_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig ks ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

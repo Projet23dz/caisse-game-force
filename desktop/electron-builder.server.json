@@ -1,0 +1,52 @@
+{
+  "appId": "dz.gameforce.cashpro.server",
+  "productName": "CashPro",
+  "copyright": "Game Force",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "main.js",
+    "preload.js",
+    "setup.html",
+    "setup.js",
+    "build/icon.png"
+  ],
+  "extraResources": [
+    {
+      "from": "server-bundle",
+      "to": "server"
+    },
+    {
+      "from": "server/server-default.json",
+      "to": "server-default.json"
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "build/icon.png",
+    "artifactName": "CashPro-Server-Setup-${version}.${ext}",
+    "requestedExecutionLevel": "asInvoker"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": true,
+    "allowElevation": true,
+    "allowToChangeInstallationDirectory": false,
+    "createDesktopShortcut": "always",
+    "createStartMenuShortcut": true,
+    "shortcutName": "CashPro",
+    "runAfterFinish": true,
+    "multiLanguageInstaller": true,
+    "include": "build/installer-server.nsh",
+    "uninstallDisplayName": "CashPro Server"
+  }
+}

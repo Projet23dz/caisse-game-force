@@ -1,0 +1,22 @@
+{
+  "appId": "dz.gameforce.cashpro",
+  "productName": "CashPro",
+  "copyright": "Game Force",
+  "electronVersion": "22.3.27",
+  "directories": { "output": "release-win7", "buildResources": "build" },
+  "files": ["main.js", "preload.js", "setup.html", "setup.js", "build/icon.png"],
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64", "ia32"] }],
+    "icon": "build/icon.png",
+    "artifactName": "CashPro-Setup-Win7-${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "CashPro",
+    "multiLanguageInstaller": true
+  }
+}

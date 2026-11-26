@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>CashPro — العمليات</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'IBM Plex Sans Arabic','Inter',sans-serif}
+a{color:inherit}a:hover{color:inherit}
+.num{font-family:Inter,sans-serif;font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:18px}
+.btn{height:44px;padding:0 18px;border-radius:12px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:var(--s2);color:var(--tx)}
+.btn.pri{background:var(--br);color:var(--brTx);border-color:transparent}
+.sel{height:44px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:var(--s2);color:var(--tx);font:inherit;font-size:14px}
+.chip{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--mu);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.chip.on{background:var(--tx);color:var(--bg);border-color:transparent}
+th{font-size:13px;font-weight:600;color:var(--mu);text-align:start;padding:12px 14px;white-space:nowrap}
+td{font-size:14px;padding:14px;border-top:1px solid var(--line);white-space:nowrap}
+tbody tr:hover td{background:var(--s2)}
+.ia{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--tx);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+</style>
+</helmet>
+<div style="{{vars}};direction:rtl;min-height:100vh;background:var(--bg);color:var(--tx);display:flex;flex-wrap:wrap;align-items:stretch">
+<div style="flex:1 1 240px;max-width:270px;min-width:240px;display:flex">
+<dc-import name="Sidebar" active="transactions" theme="{{theme}}" hint-size="100%,900px"></dc-import>
+</div>
+<main style="flex:999 1 560px;min-width:0;box-sizing:border-box;padding:28px 32px 40px;display:flex;flex-direction:column;gap:20px">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:16px">
+<div style="display:flex;flex-direction:column;gap:4px">
+<h1 style="margin:0;font-size:28px;font-weight:700">العمليات</h1>
+<p style="margin:0;color:var(--mu);font-size:15px">كل حركة مال في كل الأنشطة — لا حذف، الإلغاء بسبب فقط</p>
+</div>
+<div style="margin-inline-start:auto;display:flex;gap:10px;flex-wrap:wrap">
+<button type="button" class="btn">تصدير Excel / PDF</button>
+<button type="button" class="btn pri">+ عملية جديدة</button>
+</div>
+</header>
+
+<section class="card" style="padding:16px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu)">النشاط
+<select class="sel"><option>كل الأنشطة</option><option>Game Force</option><option>ETP</option></select></label>
+<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu)">الحساب
+<select class="sel"><option>كل الحسابات</option><option>الخزينة</option><option>البنك</option><option>CCP</option></select></label>
+<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu)">من
+<input type="date" class="sel" value="2026-11-01"></label>
+<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu)">إلى
+<input type="date" class="sel" value="2026-11-24"></label>
+<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu);flex:1;min-width:200px">بحث
+<input type="search" class="sel" placeholder="الوصف، المرجع، المورّد…"></label>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap" role="group" aria-label="تصفية حسب النوع">
+<sc-for list="{{chips}}" as="c" hint-placeholder-count="6">
+<button type="button" class="chip {{c.cls}}" aria-pressed="{{c.pressed}}" onClick="{{c.pick}}">{{c.label}}</button>
+</sc-for>
+</div>
+</section>
+
+<section class="card" style="padding:0;overflow:hidden">
+<div style="overflow-x:auto">
+<table style="width:100%;border-collapse:collapse;min-width:1000px">
+<thead><tr><th>المرجع</th><th>التاريخ</th><th>النشاط</th><th>النوع</th><th>الفئة / الطرف</th><th>الحساب</th><th>المبلغ</th><th>المستخدم</th><th>الحالة</th><th><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">إجراءات</span></th></tr></thead>
+<tbody>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+<tr style="opacity:{{r.op}}">
+<td class="num" style="color:var(--mu)">#{{r.ref}}</td>
+<td class="num">{{r.date}}</td>
+<td>{{r.biz}}</td>
+<td><span style="font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--s2);color:{{r.color}}">{{r.type}}</span></td>
+<td style="white-space:normal;min-width:200px"><div style="display:flex;flex-direction:column"><span>{{r.cat}}</span><span style="font-size:12px;color:var(--mu)">{{r.party}}</span></div></td>
+<td>{{r.acc}}</td>
+<td style="font-weight:700;color:{{r.color}};text-decoration:{{r.strike}}"><span class="num">{{r.amount}}</span> دج</td>
+<td>{{r.user}}</td>
+<td><span style="font-size:12px;color:{{r.stColor}}">{{r.status}}</span></td>
+<td><div style="display:flex;gap:6px"><button type="button" class="ia" aria-label="عرض"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></button><button type="button" class="ia" aria-label="تعديل"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"></path></svg></button></div></td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+<div style="display:flex;align-items:center;gap:8px;padding:14px 16px;border-top:1px solid var(--line);flex-wrap:wrap">
+<span style="font-size:13px;color:var(--mu)">عرض <span class="num">{{count}}</span> من <span class="num">124</span> عملية</span>
+<div style="margin-inline-start:auto;display:flex;gap:6px">
+<button type="button" class="ia" aria-label="السابق">›</button>
+<button type="button" class="ia" style="background:var(--br);color:var(--brTx);border-color:transparent" aria-current="page">1</button>
+<button type="button" class="ia">2</button><button type="button" class="ia">3</button>
+<button type="button" class="ia" aria-label="التالي">‹</button>
+</div>
+</div>
+</section>
+<p style="margin:0;font-size:13px;color:var(--mu)">المبلغ والتاريخ والحساب لا تُعدَّل بعد التسجيل: التصحيح = إلغاء بسبب + عملية جديدة مرتبطة، وكل ذلك يظهر في سجل التعديلات.</p>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["gf-dark","gf-light","gold"],"default":"gf-dark"},"$preview":{"width":1440,"height":1000}}'>
+const THEMES = {
+  'gf-dark':  {bg:'#0A0E27',side:'#0E1433',s1:'#141A3D',s2:'#1C2452',line:'rgba(255,255,255,0.08)',tx:'#F5F5F7',mu:'#A9AEC9',br:'#E30613',br2:'#1F2A7A',brTx:'#FFFFFF',glow:'rgba(227,6,19,0.28)',inc:'#34D399',exp:'#FB7185',pur:'#60A5FA',trf:'#FBBF24'},
+  'gf-light': {bg:'#F3F4F9',side:'#FFFFFF',s1:'#FFFFFF',s2:'#EDEFF7',line:'rgba(31,42,122,0.12)',tx:'#121633',mu:'#50567A',br:'#D0050F',br2:'#1F2A7A',brTx:'#FFFFFF',glow:'rgba(208,5,15,0.22)',inc:'#15803D',exp:'#BE123C',pur:'#1D4ED8',trf:'#B45309'},
+  'gold':     {bg:'#0B0B10',side:'#101017',s1:'#16161E',s2:'#20202B',line:'rgba(255,255,255,0.08)',tx:'#F5F5F7',mu:'#A8A5B5',br:'#D4A23A',br2:'#4A3A16',brTx:'#141414',glow:'rgba(212,162,58,0.25)',inc:'#34D399',exp:'#FB7185',pur:'#60A5FA',trf:'#FBBF24'}
+};
+function themeVars(k) {
+  const t = THEMES[k] || THEMES['gf-dark'];
+  return Object.keys(t).map((n) => '--' + n + ':' + t[n]).join(';');
+}
+const TYPES = {
+  income: { label: 'إيراد', color: 'var(--inc)' },
+  expense: { label: 'مصروف', color: 'var(--exp)' },
+  purchase: { label: 'شراء', color: 'var(--pur)' },
+  transfer: { label: 'تحويل', color: 'var(--trf)' },
+  salary: { label: 'أجور', color: 'var(--mu)' }
+};
+const DATA = [
+  ['1248', '24/11 14:30', 'Game Force', 'income', 'مبيعات أجهزة', 'PS5 Slim + يدّين', 'الخزينة', '+95 000', 'كريم', 'ok'],
+  ['1247', '24/11 13:10', 'ETP', 'purchase', 'كاميرات', 'المورّد: TechnoSec', 'البنك', '−120 000', 'سمير', 'ok'],
+  ['1246', '24/11 12:45', 'Game Force', 'expense', 'كهرباء', 'فاتورة سونلغاز', 'CCP', '−18 500', 'Admin', 'ok'],
+  ['1245', '24/11 11:20', 'Game Force', 'transfer', 'الخزينة ← البنك', 'تحويل داخلي', 'الخزينة', '50 000', 'Admin', 'ok'],
+  ['1244', '24/11 10:05', 'ETP', 'income', 'تركيب ألياف بصرية', 'زبون حي النصر', 'الخزينة', '+65 000', 'سمير', 'ok'],
+  ['1243', '23/11 18:40', 'ETP', 'salary', 'تسبيق أجر نوفمبر', 'ياسين — تقني', 'الخزينة', '−10 000', 'سمير', 'ok'],
+  ['1242', '23/11 16:15', 'Game Force', 'expense', 'نقل', 'توصيل زبون', 'الخزينة', '−2 000', 'كريم', 'cancel'],
+  ['1241', '23/11 16:20', 'Game Force', 'expense', 'نقل', 'تصحيح للعملية #1242', 'الخزينة', '−2 500', 'سمير', 'ok']
+];
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { f: 'all' }; }
+  renderVals() {
+    const theme = this.props.theme ?? 'gf-dark';
+    const f = this.state.f;
+    const chips = [['all', 'الكل']].concat(Object.keys(TYPES).map((k) => [k, TYPES[k].label]))
+      .map(([id, label]) => ({ label, cls: id === f ? 'on' : '', pressed: id === f ? 'true' : 'false', pick: () => this.setState({ f: id }) }));
+    const rows = DATA.filter((d) => f === 'all' || d[3] === f).map((d) => {
+      const cancelled = d[9] === 'cancel';
+      return {
+        ref: d[0], date: d[1], biz: d[2], type: TYPES[d[3]].label, color: TYPES[d[3]].color, cat: d[4], party: d[5],
+        acc: d[6], amount: d[7], user: d[8],
+        status: cancelled ? 'ملغاة — خطأ في المبلغ' : 'مُصادَق', stColor: cancelled ? 'var(--exp)' : 'var(--mu)',
+        strike: cancelled ? 'line-through' : 'none', op: cancelled ? '0.6' : '1'
+      };
+    });
+    return { theme, vars: themeVars(theme), chips, rows, count: String(rows.length) };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>CashPro — الخزينة</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'IBM Plex Sans Arabic','Inter',sans-serif}
+a{color:inherit}a:hover{color:inherit}
+.num{font-family:Inter,sans-serif;font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:18px}
+.btn{height:48px;padding:0 20px;border-radius:12px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;border:1px solid var(--line);background:var(--s2);color:var(--tx)}
+.btn.pri{background:var(--br);color:var(--brTx);border-color:transparent}
+.fld{height:52px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--s2);color:var(--tx);font-family:Inter,sans-serif;font-size:22px;font-weight:700;width:100%;box-sizing:border-box}
+.fld:focus{outline:2px solid var(--br);outline-offset:1px}
+.row{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line);font-size:15px}
+</style>
+</helmet>
+<div style="{{vars}};direction:rtl;min-height:100vh;background:var(--bg);color:var(--tx);display:flex;flex-wrap:wrap;align-items:stretch">
+<div style="flex:1 1 240px;max-width:270px;min-width:240px;display:flex">
+<dc-import name="Sidebar" active="treasury" theme="{{theme}}" hint-size="100%,900px"></dc-import>
+</div>
+<main style="flex:999 1 560px;min-width:0;box-sizing:border-box;padding:28px 32px 40px;display:flex;flex-direction:column;gap:20px">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:16px">
+<div style="display:flex;flex-direction:column;gap:4px">
+<h1 style="margin:0;font-size:28px;font-weight:700">الخزينة</h1>
+<p style="margin:0;color:var(--mu);font-size:15px">Game Force · الخزينة الرئيسية · يوم <span class="num">24/11/2026</span></p>
+</div>
+<span style="margin-inline-start:auto;font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;background:var(--s2);color:var(--inc)">● الصندوق مفتوح منذ <span class="num">08:30</span> — كريم</span>
+</header>
+
+<section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+<div class="card" style="padding:24px;display:flex;flex-direction:column;gap:6px;background:var(--br2);border-color:transparent;color:#FFFFFF">
+<span style="font-size:15px;color:#C9CDEA">الرصيد النظري الحالي</span>
+<span style="font-size:40px;font-weight:700"><span class="num">412 000</span> دج</span>
+<span style="font-size:14px;color:#C9CDEA">رصيد الافتتاح <span class="num">298 500</span> دج</span>
+</div>
+<div class="card" style="padding:20px 24px;display:flex;flex-direction:column">
+<h2 style="margin:0 0 6px;font-size:17px">ملخّص اليوم</h2>
+<div class="row"><span style="color:var(--inc)">↗</span>الإيرادات<span style="margin-inline-start:auto;font-weight:700"><span class="num">+181 000</span> دج</span></div>
+<div class="row"><span style="color:var(--exp)">↘</span>المصاريف<span style="margin-inline-start:auto;font-weight:700"><span class="num">−5 500</span> دج</span></div>
+<div class="row"><span style="color:var(--pur)">▣</span>المشتريات<span style="margin-inline-start:auto;font-weight:700"><span class="num">−12 000</span> دج</span></div>
+<div class="row"><span style="color:var(--trf)">⇄</span>تحويل إلى البنك<span style="margin-inline-start:auto;font-weight:700"><span class="num">−50 000</span> دج</span></div>
+</div>
+</section>
+
+<section class="card" style="padding:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:14px">
+<h2 style="margin:0;font-size:20px">إغلاق الصندوق</h2>
+<label style="display:flex;flex-direction:column;gap:8px;font-size:14px;color:var(--mu)">المبلغ المعدود فعلياً في الصندوق (دج)
+<input class="fld" type="number" inputmode="numeric" value="{{countStr}}" onInput="{{onCount}}" style="direction:ltr;text-align:right"></label>
+<sc-if value="{{needReason}}" hint-placeholder-val="{{ false }}">
+<label style="display:flex;flex-direction:column;gap:8px;font-size:14px;color:var(--mu)">سبب الفرق (إلزامي)
+<textarea rows="2" placeholder="مثال: خطأ في ردّ الباقي لزبون" style="border-radius:12px;border:1px solid var(--line);background:var(--s2);color:var(--tx);font:inherit;font-size:14px;padding:10px 12px;resize:vertical"></textarea></label>
+</sc-if>
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+<button type="button" class="btn pri">إغلاق الصندوق</button>
+<button type="button" class="btn" onClick="{{setExact}}">المبلغ مطابق</button>
+</div>
+<p style="margin:0;font-size:13px;color:var(--mu)">{{hint}}</p>
+</div>
+<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:28px;border-radius:18px;background:var(--s2);min-height:220px;text-align:center">
+<span aria-hidden="true" style="width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:700;background:{{badgeBg}};color:#FFFFFF">{{icon}}</span>
+<span style="font-size:15px;color:var(--mu)">فرق الصندوق</span>
+<span style="font-size:36px;font-weight:700;color:{{diffColor}}"><span class="num">{{diffStr}}</span> دج</span>
+<span style="font-size:15px;font-weight:700;color:{{diffColor}}">{{label}}</span>
+</div>
+</section>
+
+<section class="card" style="padding:20px 24px;display:flex;flex-direction:column">
+<h2 style="margin:0 0 6px;font-size:17px">آخر الإغلاقات</h2>
+<sc-for list="{{history}}" as="h" hint-placeholder-count="4">
+<div class="row"><span class="num" style="min-width:90px;color:var(--mu)">{{h.d}}</span><span>{{h.who}}</span><span style="font-size:13px;color:var(--mu)">{{h.note}}</span><span style="margin-inline-start:auto;font-weight:700;color:{{h.color}}"><span class="num">{{h.diff}}</span> دج</span></div>
+</sc-for>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["gf-dark","gf-light","gold"],"default":"gf-dark"},"$preview":{"width":1440,"height":1000}}'>
+const THEMES = {
+  'gf-dark':  {bg:'#0A0E27',side:'#0E1433',s1:'#141A3D',s2:'#1C2452',line:'rgba(255,255,255,0.08)',tx:'#F5F5F7',mu:'#A9AEC9',br:'#E30613',br2:'#1F2A7A',brTx:'#FFFFFF',glow:'rgba(227,6,19,0.28)',inc:'#34D399',exp:'#FB7185',pur:'#60A5FA',trf:'#FBBF24'},
+  'gf-light': {bg:'#F3F4F9',side:'#FFFFFF',s1:'#FFFFFF',s2:'#EDEFF7',line:'rgba(31,42,122,0.12)',tx:'#121633',mu:'#50567A',br:'#D0050F',br2:'#1F2A7A',brTx:'#FFFFFF',glow:'rgba(208,5,15,0.22)',inc:'#15803D',exp:'#BE123C',pur:'#1D4ED8',trf:'#B45309'},
+  'gold':     {bg:'#0B0B10',side:'#101017',s1:'#16161E',s2:'#20202B',line:'rgba(255,255,255,0.08)',tx:'#F5F5F7',mu:'#A8A5B5',br:'#D4A23A',br2:'#4A3A16',brTx:'#141414',glow:'rgba(212,162,58,0.25)',inc:'#34D399',exp:'#FB7185',pur:'#60A5FA',trf:'#FBBF24'}
+};
+function themeVars(k) {
+  const t = THEMES[k] || THEMES['gf-dark'];
+  return Object.keys(t).map((n) => '--' + n + ':' + t[n]).join(';');
+}
+const THEO = 412000;
+function fmt(n) {
+  const s = Math.abs(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return (n > 0 ? '+' : n < 0 ? '−' : '') + s;
+}
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { count: 411500 }; }
+  renderVals() {
+    const theme = this.props.theme ?? 'gf-dark';
+    const c = Number(this.state.count) || 0;
+    const diff = c - THEO;
+    const ok = diff === 0;
+    return {
+      theme, vars: themeVars(theme),
+      countStr: String(this.state.count),
+      onCount: (e) => this.setState({ count: e.target.value }),
+      setExact: () => this.setState({ count: THEO }),
+      diffStr: fmt(diff),
+      diffColor: ok ? 'var(--inc)' : diff < 0 ? 'var(--exp)' : 'var(--trf)',
+      badgeBg: ok ? '#16A34A' : diff < 0 ? '#E11D48' : '#D97706',
+      icon: ok ? '✓' : '!',
+      label: ok ? 'مطابق (OK)' : diff < 0 ? 'عجز — تسوية سالبة' : 'فائض — تسوية موجبة',
+      needReason: !ok,
+      hint: ok ? 'لا يوجد فرق: يُغلق اليوم مباشرة.' : 'الموظف: يُرسَل الإغلاق للمسؤول للمصادقة. المسؤول: تُسجَّل تسوية تلقائية بالفرق.',
+      history: [
+        { d: '23/11/2026', who: 'كريم', note: 'مطابق', diff: '0', color: 'var(--inc)' },
+        { d: '22/11/2026', who: 'كريم', note: 'خطأ في ردّ الباقي — صادق عليه سمير', diff: '−500', color: 'var(--exp)' },
+        { d: '21/11/2026', who: 'سمير', note: 'مطابق', diff: '0', color: 'var(--inc)' },
+        { d: '20/11/2026', who: 'كريم', note: 'ورقة نقدية وُجدت بعد الإغلاق', diff: '+1 000', color: 'var(--trf)' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

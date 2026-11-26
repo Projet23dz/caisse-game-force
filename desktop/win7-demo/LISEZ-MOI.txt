@@ -1,0 +1,18 @@
+CashPro — VERSION D'ESSAI pour Windows 7 SP1 (64 bits)
+=====================================================
+Pour tester uniquement. Ce n'est PAS un serveur : Windows 7 et
+cette installation ne reçoivent plus de mises à jour de sécurité.
+
+1. Décompressez ce dossier (ex. C:\CashPro-Essai).
+2. Double-cliquez « CashPro-Essai.cmd ».
+   Le premier lancement prépare la base (environ 1 minute).
+3. Connexion : admin / CashPro@2026 (changement du mot de passe demandé).
+4. Fermez la fenêtre CashPro : tout s'arrête.
+   En cas de problème : « Arreter.cmd », journaux dans data\logs.
+Pour repartir de zéro : supprimez le dossier « data ».
+
+نسخة تجريبية فقط لـ Windows 7 SP1 (64 بت) — ليست سيرفراً.
+1. فكّ الضغط (مثلاً C:\CashPro-Essai)
+2. شغّل «CashPro-Essai.cmd» — أول تشغيل يجهّز القاعدة (دقيقة تقريباً)
+3. الدخول: admin / CashPro@2026
+4. أغلق نافذة CashPro فيتوقف كل شيء. للبدء من جديد احذف مجلد data
