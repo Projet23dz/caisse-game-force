@@ -206,8 +206,8 @@ export function updateRoutes(deps: Deps, opts: { currentVersion: string }): Rout
     if (process.env.PG_BIN) pgArgs.push('-PgBin', process.env.PG_BIN);
     if (process.env.PG_PORT) pgArgs.push('-Port', process.env.PG_PORT);
     try {
-      await runPs(backup, pgArgs, 'update.log', 15 * 60 * 1000,
-        'Sauvegarde trop longue (15 min) : arrêtée, rien n\'a été installé. Voir C:\\CashPro\\backups\\backup.log');
+      await runPs(backup, pgArgs, 'update.log', 3 * 60 * 1000,
+        'Sauvegarde trop longue (3 min) : arrêtée, rien n\'a été installé. Voir C:\\CashPro\\backups\\backup.log');
     } catch (e) {
       const last = await lastBackupLine();
       throw new Error(`${e instanceof Error ? e.message : String(e)}${last ? ` — ${last}` : ''}`);
