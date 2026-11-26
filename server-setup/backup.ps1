@@ -25,7 +25,7 @@ if (-not $OffsitePath) {
   try {
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     $env:PGCLIENTENCODING = "UTF8"
-    $v = & (Join-Path $PgBin "psql.exe") -h localhost -p $Port -U cashpro_backup -d $DbName -tA -c "SELECT coalesce(value->>'offsite_path', '') FROM cashpro.app_settings WHERE key = 'backup'" 2>$null
+    $v = & (Join-Path $PgBin "psql.exe") -h localhost -p $Port -U cashpro_backup -d $DbName -w -tA -c "SELECT coalesce(value->>'offsite_path', '') FROM cashpro.app_settings WHERE key = 'backup'" 2>$null
     if ($LASTEXITCODE -eq 0 -and "$v".Trim()) { $OffsitePath = "$v".Trim(); $OffsiteSub = "CashPro-Backups" }
   } catch { }
 }
@@ -36,11 +36,15 @@ $log = Join-Path $BackupDir "backup.log"
 
 function Log($m) { "$(Get-Date -Format s)  $m" | Add-Content $log; Write-Host $m }
 
+Log "Début de la sauvegarde ($env:USERNAME, port $Port)"
 try {
+  # -w : jamais de demande de mot de passe (pgpass.conf du compte SYSTEM) ; sans lui, pg_dump attend sans fin dans une fenêtre cachée
+  if (-not (Test-Path (Join-Path $PgBin "pg_dump.exe"))) { throw "pg_dump introuvable : $PgBin" }
   # 1. Base de données (format compressé, restaurable avec pg_restore)
-  & (Join-Path $PgBin "pg_dump.exe") -h localhost -p $Port -U cashpro_backup -d $DbName -Fc -Z 9 `
+  & (Join-Path $PgBin "pg_dump.exe") -h localhost -p $Port -U cashpro_backup -d $DbName -w -Fc -Z 9 `
       --no-owner -f (Join-Path $target "cashpro.dump")
-  if ($LASTEXITCODE -ne 0) { throw "pg_dump a échoué ($LASTEXITCODE)" }
+  if ($LASTEXITCODE -ne 0) { throw "pg_dump a échoué ($LASTEXITCODE) : mot de passe (pgpass.conf du compte SYSTEM) ou PostgreSQL arrêté" }
+  Log "Base sauvegardée"
 
   # 2. Vérification de lisibilité du dump
   & (Join-Path $PgBin "pg_restore.exe") -l (Join-Path $target "cashpro.dump") | Out-Null
@@ -54,6 +58,7 @@ try {
     }
   }
 
+  Log "Pièces jointes et logos sauvegardés"
   # 4. Empreintes SHA-256
   Get-ChildItem $target -File | ForEach-Object {
     "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash, $_.Name

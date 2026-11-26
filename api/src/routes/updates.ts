@@ -136,13 +136,33 @@ export function updateRoutes(deps: Deps, opts: { currentVersion: string }): Rout
     });
   };
 
-  const runPs = (script: string, args: string[], logName: string) => new Promise<void>((resolve, reject) => {
+  // Délai maximal : un script bloqué (ex. outil en attente d'un mot de passe dans une fenêtre cachée) est arrêté
+  // avec tous ses processus enfants, et la mise à jour échoue avec un message clair au lieu de tourner sans fin.
+  const runPs = (script: string, args: string[], logName: string, timeoutMs = 5 * 60 * 1000, timeoutMsg?: string) => new Promise<void>((resolve, reject) => {
     const log = fs.openSync(path.join(deps.dataDir, 'logs', logName), 'a');
-    const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...args],
+    const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, ...args],
       { windowsHide: true, stdio: ['ignore', log, log] });
-    p.on('error', (e) => { fs.closeSync(log); reject(e); });
-    p.on('exit', (code) => { fs.closeSync(log); if (code === 0) resolve(); else reject(new Error(`${path.basename(script)} : code ${code}`)); });
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (p.pid) spawn('taskkill', ['/PID', String(p.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => p.kill());
+      else p.kill();
+    }, timeoutMs);
+    p.on('error', (e) => { clearTimeout(timer); fs.closeSync(log); reject(e); });
+    p.on('exit', (code) => {
+      clearTimeout(timer); fs.closeSync(log);
+      if (timedOut) reject(new Error(timeoutMsg ?? `${path.basename(script)} : délai dépassé (${Math.round(timeoutMs / 60000)} min)`));
+      else if (code === 0) resolve(); else reject(new Error(`${path.basename(script)} : code ${code}`));
+    });
   });
+
+  // dernière ligne utile de backup.log, pour expliquer un échec dans l'interface
+  const lastBackupLine = async () => {
+    try {
+      const lines = (await fsp.readFile(path.join(deps.dataDir, 'backups', 'backup.log'), 'utf8')).trim().split(/\r?\n/);
+      return (lines[lines.length - 1] ?? '').replace(/^\S+\s+/, '').slice(0, 300);
+    } catch { return ''; }
+  };
 
   const install = async () => {
     const cfg = await readCfg();
@@ -185,11 +205,17 @@ export function updateRoutes(deps: Deps, opts: { currentVersion: string }): Rout
     const pgArgs: string[] = [];
     if (process.env.PG_BIN) pgArgs.push('-PgBin', process.env.PG_BIN);
     if (process.env.PG_PORT) pgArgs.push('-Port', process.env.PG_PORT);
-    await runPs(backup, pgArgs, 'update.log');
+    try {
+      await runPs(backup, pgArgs, 'update.log', 15 * 60 * 1000,
+        'Sauvegarde trop longue (15 min) : arrêtée, rien n\'a été installé. Voir C:\\CashPro\\backups\\backup.log');
+    } catch (e) {
+      const last = await lastBackupLine();
+      throw new Error(`${e instanceof Error ? e.message : String(e)}${last ? ` — ${last}` : ''}`);
+    }
 
     // 3. Installation silencieuse dans une tâche planifiée distincte (elle survit à l'arrêt de l'API)
     await writeState({ status: 'installing' });
-    await runPs(path.join(setupDir, 'run-update.ps1'), ['-Installer', file], 'update.log');
+    await runPs(path.join(setupDir, 'run-update.ps1'), ['-Installer', file], 'update.log', 2 * 60 * 1000);
   };
 
   // ------------------------------------------------------------------ postes Windows (sans connexion)
