@@ -225,8 +225,11 @@ export async function api<T = any>(method: string, path: string, body?: unknown,
   if (body instanceof FormData) payload = body;
   else if (body !== undefined) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
   const cacheable = method === 'GET' && CACHE_RE.test(path);
+  // hors connexion connu : la copie locale tout de suite (la vérification périodique détecte le retour du serveur)
+  if (cacheable && !net.online) { const c = cacheGet(path); if (c !== undefined) return c as T; }
   // délai maximal : sans réponse, l'appareil passe hors connexion au lieu d'attendre indéfiniment
-  const timeoutMs = extra.timeoutMs ?? (body instanceof FormData ? 0 : method === 'GET' ? 25_000 : 15_000);
+  // déjà hors connexion (Tailscale arrêté…) : délais courts, la copie locale s'affiche sans attendre
+  const timeoutMs = extra.timeoutMs ?? (body instanceof FormData ? 0 : method === 'GET' ? (net.online ? 25_000 : 4_000) : (net.online ? 15_000 : 6_000));
   const ctl = timeoutMs && typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : 0;
   let r: Response;

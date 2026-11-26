@@ -68,6 +68,8 @@ public class MainActivity extends Activity {
     private TextView status;
     private Button connectBtn;
     private volatile String origin;
+    /** Jusqu'à cette heure, le serveur est considéré injoignable (Tailscale arrêté…) : interface servie depuis la copie. */
+    private volatile long offlineUntil = 0;
     private ValueCallback<Uri[]> fileCallback;
 
     @Override
@@ -167,10 +169,13 @@ public class MainActivity extends Activity {
                 setStatus("جارٍ التحقق من السيرفر… — Vérification du serveur…", MU);
                 boolean offlineReady = uiCached(base);
                 try {
-                    waitHealth(base, offlineReady ? 5 : 15);
+                    if (offlineReady) quickHealth(base);   // Tailscale arrêté, hors réseau… : on n'attend pas
+                    else waitHealth(base, 15);
+                    offlineUntil = 0;
                 } catch (Exception e) {
-                    // 1.3.5 : interface déjà gardée sur le téléphone → ouverture hors connexion
+                    // 1.3.6 : interface déjà gardée sur le téléphone → ouverture hors connexion
                     if (!offlineReady) throw e;
+                    offlineUntil = System.currentTimeMillis() + 20000;
                 }
                 origin = base;
                 runOnUiThread(() -> showWeb(base));
@@ -210,6 +215,15 @@ public class MainActivity extends Activity {
         Uri u = Uri.parse(s);
         int port = u.getPort() > 0 ? u.getPort() : 4600;
         return u.getScheme() + "://" + u.getHost() + ":" + port;
+    }
+
+    /** Un seul essai court (3 s) : sert à décider tout de suite d'ouvrir en mode hors connexion. */
+    private static void quickHealth(String base) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(base + "/api/health").openConnection();
+        c.setConnectTimeout(3000);
+        c.setReadTimeout(3000);
+        if (c.getResponseCode() != 200) throw new Exception("réponse inattendue (" + c.getResponseCode() + ")");
+        c.disconnect();
     }
 
     private static void waitHealth(String base, int seconds) throws Exception {
@@ -357,6 +371,10 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String version() { return appVersion(); }
+
+        /** 1.3.6 : ouverture sans serveur (Tailscale arrêté…) → l'interface passe tout de suite en mode hors connexion. */
+        @JavascriptInterface
+        public boolean startedOffline() { return System.currentTimeMillis() < offlineUntil; }
     }
 
 
@@ -428,6 +446,9 @@ public class MainActivity extends Activity {
         if (path == null) path = "/";
         if (path.startsWith("/api/") || path.equals("/sw.js") || path.equals("/offline-manifest.json")) return null;
         String key = uiKey(path);
+        // serveur injoignable il y a peu : copie directe (pas d'attente de 5 s par fichier)
+        File cachedFile = new File(uiDir(base), key);
+        if (System.currentTimeMillis() < offlineUntil && cachedFile.isFile()) return cachedUi(key, cachedFile);
         try {
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
             c.setConnectTimeout(5000);
@@ -449,18 +470,22 @@ public class MainActivity extends Activity {
             String ct = c.getContentType();
             String mime = ct == null ? mimeOf(key) : ct.split(";")[0].trim();
             String enc = ct != null && ct.toLowerCase().contains("charset=") ? ct.substring(ct.toLowerCase().indexOf("charset=") + 8).trim() : "UTF-8";
+            offlineUntil = 0;
             if (code == 200) saveUi(base, key, data);
             String msg = c.getResponseMessage();
             return new WebResourceResponse(mime, enc, code, msg == null || msg.isEmpty() ? "OK" : msg, headers, new ByteArrayInputStream(data));
         } catch (Exception e) {
-            File f = new File(uiDir(base), key);
-            if (!f.isFile()) return null;
-            try {
-                Map<String, String> headers = new HashMap<>();
-                headers.put("Cache-Control", "no-store");
-                return new WebResourceResponse(mimeOf(key), "UTF-8", 200, "OK", headers, new FileInputStream(f));
-            } catch (Exception e2) { return null; }
+            offlineUntil = System.currentTimeMillis() + 20000;
+            return cachedFile.isFile() ? cachedUi(key, cachedFile) : null;
         }
+    }
+
+    private WebResourceResponse cachedUi(String key, File f) {
+        try {
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Cache-Control", "no-store");
+            return new WebResourceResponse(mimeOf(key), "UTF-8", 200, "OK", headers, new FileInputStream(f));
+        } catch (Exception e) { return null; }
     }
 
     /** Après un chargement réussi : copie complète de l'interface (liste fournie par le serveur), si elle a changé. */

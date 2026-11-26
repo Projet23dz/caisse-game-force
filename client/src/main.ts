@@ -1,5 +1,5 @@
 // Point d'entrée : session, routeur, gabarit (barre latérale + barre supérieure), connexion.
-import { api, ApiError, authImg, can, clear, clearReadCache, confirmBox, deviceName, errMsg, isNetworkError, field, fmtDate, getRefresh, gfLogo, get, h, icon, input, isAdmin, loadOpTypes, type Me, net, passwordInput, post, session, setRefresh, setToken, spinner, today, toast, tryRefresh } from './core.js';
+import { api, ApiError, authImg, can, clear, clearReadCache, confirmBox, deviceName, errMsg, isNetworkError, field, fmtDate, getRefresh, gfLogo, get, h, icon, input, isAdmin, loadOpTypes, type Me, net, passwordInput, setOnline, post, session, setRefresh, setToken, spinner, today, toast, tryRefresh } from './core.js';
 import { getLang, type Lang, setLang, t } from './i18n.js';
 import { offlineBanner, openOutbox, pendingCount, startOutbox } from './offline.js';
 import { activityPage } from './pages/activity.js';
@@ -349,6 +349,8 @@ function changePasswordPage(current = '', remember = false) {
 // ------------------------------------------------------------------ démarrage
 try { setLang((localStorage.getItem('cp.lang') as Lang) || 'ar'); applyTheme(localStorage.getItem('cp.theme') || undefined); } catch { setLang('ar'); }
 window.addEventListener('hashchange', () => route());
+// application Android ouverte sans serveur (Tailscale arrêté…) : mode hors connexion immédiat
+try { if ((window as any).cashproDesktop?.startedOffline?.()) setOnline(false); } catch { /* */ }
 // 1.3.6 : copie de l'interface sur l'appareil → l'application s'ouvre même sans serveur (application Windows, navigateur en HTTPS/localhost).
 // Le téléphone Android garde sa copie lui-même (application).
 try { if ('serviceWorker' in navigator && window.isSecureContext) void navigator.serviceWorker.register('/sw.js').catch(() => undefined); } catch { /* */ }
