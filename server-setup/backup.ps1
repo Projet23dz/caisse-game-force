@@ -14,11 +14,18 @@ param(
   [string]$DataDirs = "C:\CashPro\attachments;C:\CashPro\logos",
   [string]$OffsitePath = "",          # ex : "E:\CashPro-Backups" ou dossier Google Drive / OneDrive
   [int]$KeepDays = 30,
-  [int]$KeepMonths = 12
+  [int]$KeepMonths = 12,
+  [string]$EnvFile = "C:\CashPro\config\cashpro.env"
 )
 $ErrorActionPreference = "Stop"
-# Le mot de passe vient de pgpass.conf (compte SYSTEM) : ignorer un PGPASSWORD hérité de l'environnement
+# Mot de passe du rôle cashpro_backup : lu dans la configuration du serveur (cashpro.env, lisible seulement par
+# les administrateurs et SYSTEM) ; pgpass.conf ne sert plus que de secours. Avant 1.3.4, un pgpass.conf absent ou
+# périmé faisait attendre psql / pg_dump sans fin un mot de passe (fenêtre cachée) : la mise à jour restait bloquée.
 Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+if (Test-Path $EnvFile) {
+  $line = Get-Content $EnvFile -ErrorAction SilentlyContinue | Where-Object { $_ -match '^\s*BACKUP_DB_PASSWORD\s*=' } | Select-Object -First 1
+  if ($line) { $env:PGPASSWORD = ($line -replace '^\s*BACKUP_DB_PASSWORD\s*=\s*', '').Trim() }
+}
 $OffsiteSub = ""
 if (-not $OffsitePath) {
   # dossier choisi dans l'application (Google Drive) — chemin en UTF-8 (nom d'utilisateur accentué / arabe)

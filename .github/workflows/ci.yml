@@ -327,7 +327,8 @@ jobs:
           if (-not $l2.token) { throw "Base perdue après mise à jour" }
           # sauvegarde avec le compte de sauvegarde
           $port = ((Get-Content C:\CashPro\config\cashpro.env) -match '^PG_PORT=' -replace 'PG_PORT=','').Trim()
-          $env:PGPASSFILE = "C:\Windows\System32\config\systemprofile\AppData\Roaming\postgresql\pgpass.conf"
+          # 1.3.4 : sans pgpass.conf — le mot de passe doit venir de cashpro.env (sinon psql attendrait sans fin)
+          Remove-Item Env:\PGPASSFILE, Env:\PGPASSWORD -ErrorAction SilentlyContinue
           powershell -NoProfile -ExecutionPolicy Bypass -File "$b/setup/backup.ps1" -PgBin (Resolve-Path "$b/pgsql/bin").Path -Port $port
           if ($LASTEXITCODE -ne 0) { Get-Content C:\CashPro\backups\backup.log; throw "sauvegarde échouée" }
           Get-ChildItem C:\CashPro\backups -Recurse -Filter cashpro.dump | Format-Table FullName, Length
