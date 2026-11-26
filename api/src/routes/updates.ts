@@ -15,7 +15,7 @@ import { type Deps, requireAdmin, requireAuth } from '../http';
 
 export const DEFAULT_REPO = 'Projet23dz/caisse-game-force';
 const SERVER_ASSET = /^CashPro-Server-Setup-[\d.]+\.exe$/;
-const DAY = 24 * 3600 * 1000;
+const AUTO_CHECK = 6 * 3600 * 1000;   // bandeau « تحديث جديد متوفّر » : vérification GitHub toutes les 6 h
 
 /** Compare deux versions x.y.z : >0 si a est plus récente. */
 export function compareVersions(a: string, b: string): number {
@@ -214,8 +214,8 @@ export function updateRoutes(deps: Deps, opts: { currentVersion: string }): Rout
   // ------------------------------------------------------------------ serveur (administrateur)
   r.get('/server', auth, requireAdmin(), async (_req, res) => {
     let st = await readState();
-    // vérification automatique une fois par jour, en arrière-plan
-    if (!running && (!st.checkedAt || Date.now() - new Date(st.checkedAt).getTime() > DAY)) {
+    // vérification automatique toutes les 6 h, en arrière-plan
+    if (!running && (!st.checkedAt || Date.now() - new Date(st.checkedAt).getTime() > AUTO_CHECK)) {
       void check().catch((e) => writeState({ checkedAt: new Date().toISOString(), error: e instanceof Error ? e.message : String(e) }).catch(() => undefined));
     }
     st = await readState();

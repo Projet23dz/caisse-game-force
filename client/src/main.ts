@@ -108,6 +108,8 @@ function buildShell() {
   shell = { content, side, bell, act };
   refreshBell();
   void refreshActivity();
+  void checkUpdateBanner();
+  setTimeout(() => void checkUpdateBanner(), 45_000);   // la vérification GitHub tourne en arrière-plan au premier appel
 }
 
 // compteur des alertes d'activité non vues (administrateur), rafraîchi chaque minute et après chaque enregistrement
@@ -143,7 +145,7 @@ async function logout() {
 }
 
 let routeSeq = 0;
-async function route() {
+async function route(soft = false) {
   const seq = ++routeSeq;
   const raw = location.hash.replace(/^#\/?/, '') || 'dashboard';
   const [path, q = ''] = raw.split('?');
@@ -163,8 +165,10 @@ async function route() {
   if (!shell) buildShell();
   shell!.side.querySelectorAll('.nav').forEach((n) => n.classList.toggle('on', (n as HTMLElement).dataset.nav === r.nav));
   shell!.side.parentElement?.querySelector('.top-back')?.classList.toggle('hidden', !ROUTES[name] || name === 'dashboard');
-  const content = clear(shell!.content) as HTMLElement;
-  content.appendChild(spinner());
+  const content = shell!.content;
+  // soft : actualisation sur place (tirer vers le bas, retour dans l'application) — pas de sablier, défilement conservé
+  if (!soft) clear(content).appendChild(spinner());
+  const y = window.scrollY;
   try {
     const box = h('div', { class: 'col', style: 'gap:20px' });
     await r.page(box, params, new URLSearchParams(q));
@@ -172,10 +176,88 @@ async function route() {
     clear(content).appendChild(box);
   } catch (e) {
     if (seq !== routeSeq) return;
+    if (soft) { toast(errMsg(e), 'err'); return; }
     clear(content).appendChild(h('div', { class: 'err-box' }, errMsg(e)));
   }
-  window.scrollTo(0, 0);
+  window.scrollTo(0, soft ? y : 0);
 }
+
+// ------------------------------------------------------------------ actualisation (1.3.3)
+// Automatique : seul le tableau de bord se redessine (aucun filtre à perdre) ; les listes d'opérations
+// (« العمليات », page d'un nouveau) se rechargent sur place via « cp:changed » en gardant leurs filtres.
+const AUTO_PAGES = new Set(['dashboard']);
+const LIVE_PAGES = new Set(['transactions', 'business']);
+const pageName = () => (location.hash.replace(/^#\/?/, '') || 'dashboard').split('?')[0].split('/')[0];
+const busyUi = () => Boolean(document.querySelector('.modal-back') || shell?.side.classList.contains('open') ||
+  (document.activeElement && /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)));
+let refreshing = false;
+export async function refreshNow(manual = false) {
+  if (!shell || refreshing || (!manual && busyUi())) return;
+  refreshing = true;
+  try {
+    window.dispatchEvent(new Event('cp:changed'));              // opérations, compteur d'activité
+    refreshBell();
+    const p = pageName();
+    if (AUTO_PAGES.has(p) || (manual && !LIVE_PAGES.has(p))) await route(true);
+    else if (manual) await new Promise((r) => setTimeout(r, 400));   // laisse le temps à la liste de se recharger
+  } finally { refreshing = false; }
+}
+// automatique : toutes les 30 s quand l'écran est visible, et au retour dans l'application
+setInterval(() => { if (document.visibilityState === 'visible') void refreshNow(); }, 30_000);
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+  else if (hiddenAt && Date.now() - hiddenAt > 5_000) void refreshNow();
+});
+
+// tirer vers le bas pour actualiser (écran tactile)
+(() => {
+  const TH = 70;
+  const ind = h('div', { class: 'ptr', 'aria-hidden': 'true' }, icon('refresh', 20));
+  document.body.appendChild(ind);
+  let y0 = -1; let x0 = 0; let dy = 0;
+  const reset = () => { y0 = -1; dy = 0; ind.style.transform = ''; ind.classList.remove('ready', 'show'); };
+  document.addEventListener('touchstart', (e) => {
+    if (!shell || refreshing || e.touches.length !== 1 || window.scrollY > 0 || document.querySelector('.modal-back') || shell.side.classList.contains('open')) { y0 = -1; return; }
+    y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; dy = 0;
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (y0 < 0) return;
+    const d = e.touches[0].clientY - y0;
+    if (window.scrollY > 0 || d <= 0 || Math.abs(e.touches[0].clientX - x0) > d) { reset(); return; }
+    dy = Math.min(d, 140);
+    ind.classList.add('show'); ind.classList.toggle('ready', dy >= TH);
+    ind.style.transform = `translate(-50%, ${dy * 0.6}px) rotate(${dy * 2.5}deg)`;
+  }, { passive: true });
+  document.addEventListener('touchend', () => {
+    if (y0 < 0) return;
+    if (dy >= TH) {
+      ind.classList.add('spinning');
+      void refreshNow(true).finally(() => { ind.classList.remove('spinning'); reset(); });
+      y0 = -1;
+    } else reset();
+  }, { passive: true });
+  document.addEventListener('touchcancel', reset, { passive: true });
+})();
+
+// ------------------------------------------------------------------ « تحديث جديد متوفّر » (administrateur)
+async function checkUpdateBanner() {
+  if (!shell || !isAdmin()) return;
+  try {
+    const st = await get<{ available: boolean; status: string; current: string; latest: { version: string } | null }>('/updates/server');
+    document.querySelector('.upd-banner')?.remove();
+    if (!st.available || !st.latest || st.status === 'installing' || st.status === 'downloading' || st.status === 'backup') return;
+    const v = st.latest.version;
+    let dismissed = ''; try { dismissed = sessionStorage.getItem('cp.updLater') ?? ''; } catch { /* */ }
+    if (dismissed === v) return;
+    const bar = h('div', { class: 'upd-banner', role: 'status' }, icon('download', 18),
+      h('span', { style: 'flex:1' }, `${t('upd_available')} : `, h('b', { class: 'num', dir: 'ltr' }, v), h('span', { class: 'muted small' }, ` (${t('upd_current')} ${st.current})`)),
+      h('a', { class: 'btn pri sm', href: '#/settings?upd=1', onclick: () => bar.remove() }, t('upd_install')),
+      h('button', { class: 'btn ghost sm', onclick: () => { try { sessionStorage.setItem('cp.updLater', v); } catch { /* */ } bar.remove(); } }, t('upd_later')));
+    shell.content.parentElement?.insertBefore(bar, shell.content);
+  } catch { /* silencieux */ }
+}
+setInterval(() => { if (document.visibilityState === 'visible') void checkUpdateBanner(); }, 30 * 60_000);
 
 // ------------------------------------------------------------------ connexion
 function authFrame(...kids: Node[]) {
@@ -247,7 +329,7 @@ function changePasswordPage(current = '', remember = false) {
 
 // ------------------------------------------------------------------ démarrage
 try { setLang((localStorage.getItem('cp.lang') as Lang) || 'ar'); applyTheme(localStorage.getItem('cp.theme') || undefined); } catch { setLang('ar'); }
-window.addEventListener('hashchange', route);
-export const rerender = route;
+window.addEventListener('hashchange', () => route());
+export const rerender = () => route();
 export function resetShell() { shell = null; }
 route();

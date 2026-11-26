@@ -369,8 +369,8 @@ export async function transactionsPage(root: HTMLElement, _p: string[], query: U
     for (const tp of ['', ...ALL_TYPES, ...opTypes(false).map((o) => OT + o.id)]) chips.appendChild(h('button', { class: `chip ${st.type === tp ? 'on' : ''}`, 'aria-pressed': String(st.type === tp),
       onclick: () => { st.type = tp; st.page = 1; drawChips(); load(); } }, !tp ? t('all') : tp.startsWith(OT) ? (opTypeById(tp.slice(OT.length))?.name ?? '?') : typeLabel(tp)));
   };
-  const load = async () => {
-    clear(tableBox).appendChild(spinner());
+  const load = async (quiet = false) => {
+    if (!quiet) clear(tableBox).appendChild(spinner());
     // type de base : sans les types personnalisés ; type personnalisé : filtre opTypeId
     const typeF = st.type.startsWith(OT) ? { opTypeId: st.type.slice(OT.length) } : st.type ? { type: st.type, opTypeId: 'none' } : {};
     const filters = { businessId: biz.value, accountId: acc.value, ...typeF, from: from.value, to: to.value, q: q.value, status: st.status };
@@ -390,7 +390,7 @@ export async function transactionsPage(root: HTMLElement, _p: string[], query: U
   biz.addEventListener('change', async () => { st.page = 1; await loadAccounts(); load(); });
   [acc, from, to].forEach((el) => el.addEventListener('change', () => { st.page = 1; load(); }));
   let tm = 0; q.addEventListener('input', () => { clearTimeout(tm); tm = window.setTimeout(() => { st.page = 1; load(); }, 350); });
-  const onChange = () => { if (tableBox.isConnected) load(); else window.removeEventListener('cp:changed', onChange); };
+  const onChange = () => { if (tableBox.isConnected) load(true); else window.removeEventListener('cp:changed', onChange); };
   window.addEventListener('cp:changed', onChange);
   if (!fixedBiz) root.append(h('div', { class: 'page-head' }, h('div', null, h('h1', null, t('nav_transactions')), h('p', null, t('tx_sub'))),
     h('div', { class: 'actions' }, h('button', { class: 'btn pri', onclick: () => openTransaction() }, icon('plus'), t('new_op')))));

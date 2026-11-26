@@ -16,7 +16,7 @@ import { transactionRoutes } from './routes/transactions';
 import { updateRoutes } from './routes/updates';
 import { SheetsSync } from './sheets/sync';
 
-export const API_VERSION = '1.3.2';
+export const API_VERSION = '1.3.3';
 
 export function createApp(deps: Deps, opts: { corsOrigins?: string; clientDir?: string; backgroundJobs?: boolean } = {}) {
   const app = express();
@@ -41,6 +41,8 @@ export function createApp(deps: Deps, opts: { corsOrigins?: string; clientDir?: 
   const origins = (opts.corsOrigins ?? '*').split(',').map((s) => s.trim()).filter(Boolean);
   app.use(cors({ origin: origins.includes('*') ? true : origins, exposedHeaders: ['Content-Disposition'] }));
   app.use(express.json({ limit: '1mb' }));
+  // Données toujours fraîches : aucune réponse /api n'est mise en cache (WebView Android, proxy)
+  app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 
   // Santé : utilisé par l'application pour trouver le serveur (LAN / Tailscale)
   app.get('/api/health', async (_req, res) => {

@@ -10,7 +10,7 @@ const THEMES: [string, string, string][] = [
   ['emerald-dark', 'Emerald Dark', '#06140F,#10B981,#153226'], ['premium-light', 'Premium Light', '#F7F7F5,#B4862B,#26262E'],
 ];
 
-export async function settingsPage(root: HTMLElement) {
+export async function settingsPage(root: HTMLElement, _p: string[] = [], query?: URLSearchParams) {
   const u = me().user;
   const lang = select('locale', [{ value: 'ar', label: 'العربية' }, { value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }], u.locale);
   const name = input('fullName', { value: u.full_name });
@@ -80,6 +80,8 @@ export async function settingsPage(root: HTMLElement) {
         s.app_logo ? authImg('/settings/logo', 'logo', () => gfLogo(64)) : gfLogo(64)),
         h('div', { class: 'col' }, h('button', { class: 'btn pri', onclick: () => fileIn.click() }, icon('download'), t('upload')), h('span', { class: 'muted small' }, t('logo_hint')), fileIn)))));
   root.append(opTypesCard(() => rerender()), h('section', { class: 'grid g2' }, sheetsCard(), driveCard()), tailnetCard(), updatesCard());
+  // bandeau « تحديث جديد متوفّر » : aller directement à la carte des mises à jour
+  if (query?.get('upd')) setTimeout(() => root.querySelector('[data-card="updates"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
 }
 
 // Application Windows : serveur, version, mise à jour de ce poste
@@ -131,7 +133,7 @@ export function devicesCard(userId: string, self: boolean): HTMLElement {
 // Mise à jour du serveur (administrateur) : recherche, installation avec sauvegarde, suivi
 function updatesCard(): HTMLElement {
   const body = h('div', { class: 'col' }, h('span', { class: 'muted small' }, '…'));
-  const card = h('div', { class: 'card col' }, h('h2', { style: 'margin:0' }, icon('download'), ' ', t('updates')), body);
+  const card = h('div', { class: 'card col', 'data-card': 'updates' }, h('h2', { style: 'margin:0' }, icon('download'), ' ', t('updates')), body);
   let timer = 0; let wasRunning = false; let startVersion = '';
   const statusLabel = (s: string) => ({ downloading: t('upd_s_downloading'), backup: t('upd_s_backup'), installing: t('upd_s_installing'), failed: t('upd_s_failed') } as Record<string, string>)[s] ?? '';
   const render = (st: any) => {

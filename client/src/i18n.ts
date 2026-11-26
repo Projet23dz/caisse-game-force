@@ -321,6 +321,7 @@ const D = {
   upd_install: ['تحديث الآن', 'Mettre à jour maintenant', 'Update now'],
   upd_uptodate: ['البرنامج محدَّث', 'CashPro est à jour', 'CashPro is up to date'],
   upd_available: ['تحديث جديد متوفّر', 'Nouvelle version disponible', 'New version available'],
+  upd_later: ['لاحقاً', 'Plus tard', 'Later'],
   upd_checked: ['آخر بحث', 'Dernière vérification', 'Last check'],
   upd_confirm: ['سيتم: نسخة احتياطية ← تثبيت التحديث ← إعادة تشغيل السيرفر (1 إلى 3 دقائق). البرنامج سيتوقف خلال هذه المدة على كل الأجهزة. البيانات تبقى كما هي. متابعة؟', 'Étapes : sauvegarde → installation → redémarrage du serveur (1 à 3 min). CashPro sera indisponible sur tous les postes pendant ce temps. Les données sont conservées. Continuer ?', 'Steps: backup → install → server restart (1–3 min). CashPro is unavailable on all devices meanwhile. Data is kept. Continue?'],
   upd_s_downloading: ['تحميل التحديث', 'Téléchargement', 'Downloading'],

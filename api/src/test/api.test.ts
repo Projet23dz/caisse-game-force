@@ -105,8 +105,10 @@ const bal = async (biz: string, kind: string) => Number((await accounts(tokens.a
 
 describe('CashPro API', () => {
   test('santé + routes protégées', async () => {
-    const h = expectOk(await api('GET', '/api/health'));
+    const hr = await api('GET', '/api/health');
+    const h = expectOk(hr);
     assert.equal(h.ok, true);
+    assert.equal(hr.headers.get('cache-control'), 'no-store', 'données /api jamais mises en cache (1.3.3)');
     expectErr(await api('GET', '/api/businesses'), 401, 'UNAUTHENTICATED');
     expectErr(await api('GET', '/api/businesses', 'faux.jeton.jwt'), 401, 'TOKEN_INVALID');
     expectErr(await api('GET', '/api/inconnue'), 401);

@@ -192,7 +192,7 @@ export async function api<T = any>(method: string, path: string, body?: unknown,
   if (body instanceof FormData) payload = body;
   else if (body !== undefined) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
   let r: Response;
-  try { r = await fetch('/api' + path, { method, headers, body: payload }); } catch { throw new ApiError(0, 'NETWORK', t('server_unreachable')); }
+  try { r = await fetch('/api' + path, { method, headers, body: payload, cache: 'no-store' }); } catch { throw new ApiError(0, 'NETWORK', t('server_unreachable')); }
   const ct = r.headers.get('content-type') ?? '';
   const data = ct.includes('json') ? await r.json() : await r.blob();
   if (!r.ok) {

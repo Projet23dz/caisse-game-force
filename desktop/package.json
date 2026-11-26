@@ -1,7 +1,7 @@
 {
   "name": "cashpro-desktop",
   "productName": "CashPro",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "CashPro — logiciel de trésorerie Game Force / ETP (poste Windows)",
   "author": "Game Force",
   "private": true,
