@@ -16,7 +16,7 @@ import { transactionRoutes } from './routes/transactions';
 import { updateRoutes } from './routes/updates';
 import { SheetsSync } from './sheets/sync';
 
-export const API_VERSION = '1.3.0';
+export const API_VERSION = '1.3.2';
 
 export function createApp(deps: Deps, opts: { corsOrigins?: string; clientDir?: string; backgroundJobs?: boolean } = {}) {
   const app = express();
