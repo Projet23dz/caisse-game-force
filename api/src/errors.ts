@@ -13,7 +13,7 @@ export const forbidden = (msg = 'Accès refusé') => new AppError(403, 'FORBIDDE
 // Codes métier levés par la base (CPxxx) → statut HTTP
 const FORBIDDEN_CODES = new Set(['CP001', 'CP002', 'CP003', 'CP004', 'CP005', 'CP026', 'CP027', 'CP035']);
 const CONFLICT_CODES = new Set(['CP010', 'CP031', 'CP062', 'CP072', 'CP074', 'CP076', 'CP077', 'CP078',
-  'CP081', 'CP083', 'CP084', 'CP085']);
+  'CP081', 'CP083', 'CP084', 'CP085', 'CP105']);
 const NOT_FOUND_CODES = new Set(['CP050', 'CP060', 'CP071', 'CP091']);
 
 interface PgError { code?: string; message: string; detail?: string; constraint?: string }

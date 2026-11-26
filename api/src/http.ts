@@ -1,7 +1,7 @@
 import type { Request, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import type { Ctx, Database } from './db';
+import { type Ctx, type Database, type Db, one } from './db';
 import { AppError } from './errors';
 
 export interface AuthUser { id: string; role: 'admin' | 'user'; mustChangePassword: boolean }
@@ -78,4 +78,24 @@ export const pageQuery = z.object({
 
 export function param(req: Request, name: string): string {
   return zId.parse(req.params[name]);
+}
+
+// ----------------------------------------------------------------------------
+// 1.3.6 — envoi unique (mode hors connexion) : en-tête « Idempotency-Key » (UUID généré par l'appareil).
+// La clé est réservée dans la même transaction SQL que l'opération (idem_begin / idem_finish, 11_offline.sql) :
+// un renvoi de la même clé reçoit la réponse du premier enregistrement, sans créer de doublon.
+export function idemKey(req: Request): string | null {
+  const raw = req.headers['idempotency-key'];
+  if (raw === undefined || raw === '') return null;
+  const p = z.uuid().safeParse(String(raw).trim().toLowerCase());
+  if (!p.success) throw new AppError(422, 'VALIDATION', 'En-tête Idempotency-Key invalide (UUID attendu)');
+  return p.data;
+}
+export async function idempotent<T>(db: Db, key: string | null, endpoint: string, fn: () => Promise<T>): Promise<{ replayed: boolean; body: T }> {
+  if (!key) return { replayed: false, body: await fn() };
+  const prev = await one<{ r: T | null }>(db, 'SELECT idem_begin($1::uuid, $2) AS r', [key, endpoint]);
+  if (prev && prev.r !== null) return { replayed: true, body: prev.r };
+  const body = await fn();
+  await db.query('SELECT idem_finish($1::uuid, $2::jsonb)', [key, JSON.stringify(body ?? null)]);
+  return { replayed: false, body };
 }

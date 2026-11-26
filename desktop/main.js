@@ -175,17 +175,27 @@ async function connect(cfg) {
   return cfg.server;
 }
 
+// 1.3.6 — mode hors connexion : l'interface déjà ouverte une fois sur ce poste est gardée (service worker),
+// l'application s'ouvre donc même si le serveur est injoignable ; les opérations attendent sur le poste.
+function markOfflineReady(origin) {
+  const c = readConfig();
+  if (c.offlineOrigin === origin) return;
+  try { writeConfig({ ...c, offlineOrigin: origin }); } catch { /* */ }
+}
+let offlineStart = false;
 async function openServer() {
   const cfg = readConfig();
   if (!cfg.server) return showSetup('');
+  const canOffline = cfg.offlineOrigin === cfg.server;
   try {
-    const origin = await connect(cfg);
-    currentOrigin = origin;
-    await win.loadURL(origin + '/');
-    setTimeout(() => { checkClientUpdate(origin).catch(() => {}); }, 4000);
+    await checkServer(cfg.server, canOffline ? 6000 : 15000);
   } catch (e) {
-    showSetup(`Serveur injoignable : ${cfg.server} (${e.message})`);
+    if (!canOffline) return showSetup(`Serveur injoignable : ${cfg.server} (${e.message})`);
+    offlineStart = true;   // ouverture sur la copie gardée ; en cas d'échec, écran de connexion habituel
   }
+  currentOrigin = cfg.server;
+  try { await win.loadURL(cfg.server + '/'); } catch { /* did-fail-load affiche l'écran de connexion */ }
+  if (!offlineStart) setTimeout(() => { checkClientUpdate(cfg.server).catch(() => {}); }, 4000);
 }
 
 function createWindow() {
@@ -201,8 +211,16 @@ function createWindow() {
   const allowed = (url) => url.startsWith('file://') || (currentOrigin && url.startsWith(currentOrigin + '/'));
   win.webContents.on('will-navigate', (e, url) => { if (!allowed(url)) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); } });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
-  win.webContents.on('did-fail-load', (_e, code, desc, url) => {
-    if (code !== -3 && !String(url).startsWith('file://')) showSetup(`Connexion perdue (${desc}).`);
+  win.webContents.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
+    if (isMainFrame === false) return;
+    if (code !== -3 && !String(url).startsWith('file://')) {
+      showSetup(offlineStart ? `Serveur injoignable : ${readConfig().server} (${desc})` : `Connexion perdue (${desc}).`);
+      offlineStart = false;
+    }
+  });
+  win.webContents.on('did-finish-load', () => {
+    const url = win.webContents.getURL();
+    if (currentOrigin && url.startsWith(currentOrigin + '/') && !offlineStart) markOfflineReady(currentOrigin);
   });
   openServer();
 }
@@ -254,6 +272,13 @@ ipcMain.handle('cashpro:setup-info', () => {
 ipcMain.handle('cashpro:change-server', () => showSetup(''));
 ipcMain.handle('cashpro:version', () => app.getVersion());
 ipcMain.handle('cashpro:check-update', (e) => (fromServerPage(e) ? checkClientUpdate(currentOrigin, { manual: true }) : { status: 'denied' }));
+
+// Service worker (copie de l'interface) : exige une origine « sûre ». Le serveur CashPro est en HTTP sur le réseau
+// local / Tailscale : seule son adresse configurée est traitée comme sûre (avant le démarrage de Chromium).
+try {
+  const srv = readConfig().server;
+  if (srv && /^http:\/\//.test(srv)) app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure', srv);
+} catch { /* */ }
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {

@@ -123,6 +123,17 @@ Paramètre `remember_me` : `{enabled, days (1–365), admin, users}` — « تذ
 
 Fonctionnement : toutes les N minutes (5 par défaut), instantané de 6 feuilles (الملخص, أرصدة الحسابات, العمليات ≤ 50 000, الشيكات, الأجور, الملخص الشهري) envoyé en JSON à l'application Web ; s'il est inchangé, simple « ping » (`آخر اتصال بالخادم`). Échec (Internet) : nouvel essai au tour suivant. Configuration : `C:\CashPro\config\sheets.json`.
 
+## Mode hors connexion — 1.3.6
+
+- `POST /transactions`, `POST /transactions/split`, `POST /transfers` acceptent l'en-tête facultatif `Idempotency-Key: <uuid>`
+  (généré par l'appareil au moment de la saisie). Un renvoi de la même clé ne crée rien : réponse du premier enregistrement
+  + en-tête `Idempotent-Replayed: true`. Clé d'un autre utilisateur / d'un autre type d'envoi → 409 `CP105`.
+  Réservation de la clé dans la même transaction SQL que l'opération (`idem_begin` / `idem_finish`, `database/11_offline.sql`).
+- `GET /offline-manifest.json` : liste des fichiers de l'interface + version (copie gardée par l'application Android).
+- `GET /sw.js` : service worker (copie de l'interface sur le poste Windows / navigateur sûr), version = celle du manifeste.
+- Interface : file d'envoi `localStorage['cp.outbox']`, copie des lectures `cp.cache:*` (session, comptes, catégories,
+  fournisseurs, tableau de bord) ; envoi automatique au retour de la connexion (vérification toutes les 10 s).
+
 ## Mises à jour
 | Méthode | Route | Remarques |
 |---|---|---|

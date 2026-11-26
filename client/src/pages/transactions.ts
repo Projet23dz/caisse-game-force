@@ -3,6 +3,7 @@ import {
   isAdmin, kindLabel, me, modal, money, moneyEl, nullIfEmpty, opLabel, opPill, opTypeById, opTypes, post, select, spinner, toast, today, typeLabel,
 } from '../core.js';
 import { getLang, t, tk } from '../i18n.js';
+import { sendOrQueue } from '../offline.js';
 
 export const SIMPLE = ['income', 'expense', 'purchase', 'deposit', 'withdrawal'] as const;
 const PERM: Record<string, string> = { income: 'add_income', expense: 'add_expense', purchase: 'add_purchase', deposit: 'deposit_withdrawal', withdrawal: 'deposit_withdrawal' };
@@ -166,11 +167,13 @@ export function openTransaction(id?: string, preset: { businessId?: string; type
     if (splitOn) {
       const parts = splitRows.filter((r) => r.on.checked);
       if (parts.length < 2) throw new Error(t('split_need_two'));
-      const r = await post('/transactions/split', {
+      const label = `${t('split_label')} · ${type.selectedOptions[0]?.textContent ?? ''} · ${acc.selectedOptions[0]?.textContent?.split(' — ')[0] ?? ''}`;
+      const r = await sendOrQueue('/transactions/split', {
         accountId: f.accountId, type: baseOf(f.type), total: f.amount.replace(/\s/g, ''), date: toIso(f.date), paymentMethodId: nullIfEmpty(f.paymentMethodId),
         description: nullIfEmpty(f.description), reference: nullIfEmpty(f.reference), notes: nullIfEmpty(f.notes),
         parts: parts.map((p) => ({ businessId: p.bizId, categoryId: p.cat.value, amount: p.amt.value.replace(/\s/g, '') })),
-      });
+      }, label, f.amount.replace(/\s/g, ''));
+      if (!r) { close(); window.dispatchEvent(new Event('cp:changed')); return; }   // gardée sur l'appareil (hors connexion)
       toast(`${t('split_label')} : ${r.items.map((x: any) => `${x.business_name} ${money(x.amount)}`).join(' + ')} ${t('currency')}`, 'ok');
       close(); window.dispatchEvent(new Event('cp:changed'));
       return;
@@ -189,7 +192,8 @@ export function openTransaction(id?: string, preset: { businessId?: string; type
     if (f.supplierId === '__new') body.newSupplier = { name: f.newSupplierName, phone: nullIfEmpty(f.newSupplierPhone) };
     else if (f.supplierId) body.supplierId = f.supplierId;
     let r: any;
-    try { r = await post('/transactions', body); } catch (e) {
+    const label = `${type.selectedOptions[0]?.textContent ?? ''} · ${biz.selectedOptions[0]?.textContent ?? ''} · ${acc.selectedOptions[0]?.textContent?.split(' — ')[0] ?? ''}`;
+    try { r = await sendOrQueue('/transactions', body, label, String(body.amount)); } catch (e) {
       // solde insuffisant : indiquer les comptes de cette activité qui ont assez d'argent
       if (e instanceof ApiError && e.code === 'CP028') {
         const need = Number(String(body.amount));
@@ -198,6 +202,7 @@ export function openTransaction(id?: string, preset: { businessId?: string; type
       }
       throw e;
     }
+    if (!r) { close(); window.dispatchEvent(new Event('cp:changed')); return; }   // gardée sur l'appareil (hors connexion)
     toast(`${opLabel(r)} #${r.ref_no} — ${money(r.amount)} ${t('currency')}`, 'ok');
     close(); window.dispatchEvent(new Event('cp:changed'));
   } });
@@ -483,8 +488,11 @@ export async function openTransfer(after?: () => void, preset: { businessId?: st
     field(t('reference'), input('reference')), field(t('description'), input('description')));
   modal({ title: t('new_transfer'), body: f, onSubmit: async (close) => {
     const d = formData(f);
-    await post('/transfers', { fromAccountId: d.fromAccountId, toAccountId: d.toAccountId, amount: d.amount, date: toIso(d.date), reference: nullIfEmpty(d.reference), description: nullIfEmpty(d.description) });
-    toast(t('saved'), 'ok'); close(); after?.(); window.dispatchEvent(new Event('cp:changed'));
+    const sel = (n: string) => (f.querySelector(`select[name=${n}]`) as HTMLSelectElement | null)?.selectedOptions[0]?.textContent?.split(' — ')[0] ?? '';
+    const r = await sendOrQueue('/transfers', { fromAccountId: d.fromAccountId, toAccountId: d.toAccountId, amount: d.amount.replace(/\s/g, ''), date: toIso(d.date), reference: nullIfEmpty(d.reference), description: nullIfEmpty(d.description) },
+      `${t('new_transfer')} : ${sel('fromAccountId')} → ${sel('toAccountId')}`, d.amount.replace(/\s/g, ''));
+    if (r) toast(t('saved'), 'ok');
+    close(); after?.(); window.dispatchEvent(new Event('cp:changed'));
   } });
 }
 export const todayStr = today;

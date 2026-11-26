@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { many, one, Where } from '../db';
 import { notFound } from '../errors';
-import { ctx, type Deps, pageQuery, param, zDate, zDateTime, zId, zMoney, zOptText, zReason } from '../http';
+import { ctx, type Deps, idemKey, idempotent, pageQuery, param, zDate, zDateTime, zId, zMoney, zOptText, zReason } from '../http';
 
 export function opsRoutes(deps: Deps): Router {
   const r = Router();
@@ -29,12 +29,14 @@ export function opsRoutes(deps: Deps): Router {
       // compte commun : activité de chaque côté (par défaut : activité propriétaire du compte)
       fromBusinessId: zId.optional(), toBusinessId: zId.optional(),
     }).parse(req.body);
-    const row = await deps.db.tx(ctx(req), async (db) => {
+    const key = idemKey(req);
+    const out = await deps.db.tx(ctx(req), (db) => idempotent(db, key, 'POST /transfers', async () => {
       const t = await one<{ id: string }>(db, 'SELECT create_transfer($1,$2,$3,coalesce($4::timestamptz, now()),$5,$6,$7,$8) AS id',
         [b.fromAccountId, b.toAccountId, b.amount, b.date ?? null, b.reference, b.description, b.fromBusinessId ?? null, b.toBusinessId ?? null]);
       return one(db, 'SELECT * FROM transfers WHERE id = $1', [t!.id]);
-    });
-    res.status(201).json(row);
+    }));
+    if (out.replayed) res.setHeader('Idempotent-Replayed', 'true');
+    res.status(201).json(out.body);
   });
 
   r.post('/transfers/:id/cancel', async (req, res) => {

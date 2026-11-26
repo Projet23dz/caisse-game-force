@@ -60,6 +60,7 @@ const P: Record<string, string> = {
   calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>',
   refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>', lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   back: '<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>',
+  offline: '<path d="M3 3l18 18"/><path d="M8.5 16.4a5 5 0 0 1 7 0"/><path d="M5 12.9a10 10 0 0 1 5.2-2.7"/><path d="M19 12.9a10 10 0 0 0-2.2-1.5"/><path d="M2 8.8a15 15 0 0 1 4.2-2.6"/><path d="M22 8.8A15 15 0 0 0 10.5 5"/><path d="M12 20h.01"/>',
   tag: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
   print: '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>',
 };
@@ -185,28 +186,71 @@ export function tryRefresh(): Promise<boolean> {
   return refreshing!;
 }
 
-export async function api<T = any>(method: string, path: string, body?: unknown, retried = false): Promise<T> {
+// ------------------------------------------------------------------ 1.3.6 : état de la connexion + copie locale (hors connexion)
+export const net = { online: true };
+const netListeners = new Set<(online: boolean) => void>();
+export function onNet(fn: (online: boolean) => void) { netListeners.add(fn); return () => netListeners.delete(fn); }
+export function setOnline(v: boolean) {
+  if (net.online === v) return;
+  net.online = v;
+  netListeners.forEach((fn) => { try { fn(v); } catch { /* */ } });
+}
+/** UUID v4 (crypto.randomUUID n'existe pas hors HTTPS : http://192.168.x.x) — clé d'envoi unique. */
+export function uuid(): string {
+  const b = new Uint8Array(16); crypto.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const x = Array.from(b, (v) => v.toString(16).padStart(2, '0')).join('');
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+}
+// Lectures gardées pour l'affichage hors connexion : session, activités, comptes, catégories, fournisseurs, tableau de bord.
+const CACHE_RE = /^\/(auth\/me|op-types|payment-methods|dashboard|businesses(\/[0-9a-f-]{36}\/(accounts|categories|suppliers))?)(\?|$)/;
+const CACHE_PREFIX = 'cp.cache:';
+function cacheGet(path: string): unknown {
+  try { const v = localStorage.getItem(CACHE_PREFIX + path); return v ? JSON.parse(v) : undefined; } catch { return undefined; }
+}
+function cachePut(path: string, data: unknown) {
+  try { localStorage.setItem(CACHE_PREFIX + path, JSON.stringify(data)); } catch { /* stockage plein : sans copie locale */ }
+}
+/** Efface la copie locale (déconnexion, autre utilisateur). La file d'envoi n'est pas touchée. */
+export function clearReadCache() {
+  try { Object.keys(localStorage).filter((k) => k.startsWith(CACHE_PREFIX)).forEach((k) => localStorage.removeItem(k)); } catch { /* */ }
+}
+export const isNetworkError = (e: unknown) => e instanceof ApiError && e.code === 'NETWORK';
+
+export async function api<T = any>(method: string, path: string, body?: unknown, retried = false, extra: { idempotencyKey?: string; timeoutMs?: number } = {}): Promise<T> {
   const headers: Record<string, string> = { 'X-CashPro-Client': CLIENT_NAME() };
   if (session.token) headers.Authorization = `Bearer ${session.token}`;
+  if (extra.idempotencyKey) headers['Idempotency-Key'] = extra.idempotencyKey;
   let payload: BodyInit | undefined;
   if (body instanceof FormData) payload = body;
   else if (body !== undefined) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+  const cacheable = method === 'GET' && CACHE_RE.test(path);
+  // délai maximal : sans réponse, l'appareil passe hors connexion au lieu d'attendre indéfiniment
+  const timeoutMs = extra.timeoutMs ?? (body instanceof FormData ? 0 : method === 'GET' ? 25_000 : 15_000);
+  const ctl = timeoutMs && typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : 0;
   let r: Response;
-  try { r = await fetch('/api' + path, { method, headers, body: payload, cache: 'no-store' }); } catch { throw new ApiError(0, 'NETWORK', t('server_unreachable')); }
+  try { r = await fetch('/api' + path, { method, headers, body: payload, cache: 'no-store', signal: ctl?.signal }); } catch {
+    setOnline(false);
+    if (cacheable) { const c = cacheGet(path); if (c !== undefined) return c as T; }
+    throw new ApiError(0, 'NETWORK', t('server_unreachable'));
+  } finally { if (timer) clearTimeout(timer); }
+  setOnline(true);
   const ct = r.headers.get('content-type') ?? '';
   const data = ct.includes('json') ? await r.json() : await r.blob();
   if (!r.ok) {
     const e = (data as any)?.error ?? {};
     if (r.status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/refresh') && path !== '/auth/change-password') {
-      if (!retried && (e.code === 'TOKEN_INVALID' || e.code === 'UNAUTHENTICATED') && (await tryRefresh())) return api<T>(method, path, body, true);
+      if (!retried && (e.code === 'TOKEN_INVALID' || e.code === 'UNAUTHENTICATED') && (await tryRefresh())) return api<T>(method, path, body, true, extra);
       setToken(''); location.hash = '#/login';
     }
     throw new ApiError(r.status, e.code ?? 'ERROR', e.message ?? r.statusText, e.details);
   }
+  if (cacheable) cachePut(path, data);
   return data as T;
 }
 export const get = <T = any>(p: string, q?: Record<string, unknown>) => api<T>('GET', p + qs(q));
-export const post = <T = any>(p: string, b?: unknown) => api<T>('POST', p, b ?? {});
+export const post = <T = any>(p: string, b?: unknown, idempotencyKey?: string) => api<T>('POST', p, b ?? {}, false, { idempotencyKey });
 export function qs(q?: Record<string, unknown>) {
   if (!q) return '';
   const u = new URLSearchParams();

@@ -346,6 +346,24 @@ const D = {
   new_biz_shared: ['الحسابات المشتركة التي يستعملها هذا النشاط', 'Comptes communs utilisés par cette activité', 'Shared accounts used by this business'],
   new_biz_shared_hint: ['اختر الخزينة/البنك/CCP المشتركة. الأنواع غير المختارة تُنشأ لها حسابات خاصة بالنشاط.', 'Choisissez la caisse / banque / CCP communes. Pour les types non cochés, des comptes propres sont créés.', 'Pick the shared cash / bank / CCP. Own accounts are created for unticked kinds.'],
   low_balance_try: ['حسابات فيها رصيد كافٍ', 'Comptes avec un solde suffisant', 'Accounts with enough balance'],
+  // 1.3.6 : mode hors connexion
+  off_title: ['غير متصل بالسيرفر', 'Hors connexion', 'Offline'],
+  off_hint: ['العمليات الجديدة تُحفظ على هذا الجهاز وتُرسل تلقائياً عند عودة الاتصال. الأرصدة المعروضة قد تكون قديمة.', 'Les nouvelles opérations sont gardées sur cet appareil et envoyées automatiquement au retour de la connexion. Les soldes affichés peuvent être anciens.', 'New operations are kept on this device and sent automatically when the connection returns. Balances shown may be out of date.'],
+  off_pending: ['بانتظار الإرسال', 'en attente d’envoi', 'waiting to be sent'],
+  off_saved: ['لا يوجد اتصال: حُفظت العملية على هذا الجهاز وسترسل تلقائياً عند عودة الاتصال', 'Pas de connexion : opération gardée sur cet appareil, envoyée automatiquement au retour de la connexion', 'No connection: operation kept on this device, it will be sent automatically'],
+  off_sending: ['جارٍ إرسال العمليات المحفوظة…', 'Envoi des opérations gardées…', 'Sending saved operations…'],
+  off_sent: ['أُرسلت العمليات المحفوظة إلى السيرفر', 'Opérations gardées envoyées au serveur', 'Saved operations sent to the server'],
+  off_view: ['عرض', 'Voir', 'View'],
+  off_send_now: ['إرسال الآن', 'Envoyer maintenant', 'Send now'],
+  off_list: ['عمليات محفوظة على هذا الجهاز', 'Opérations gardées sur cet appareil', 'Operations kept on this device'],
+  off_failed: ['رفضها السيرفر', 'Refusée par le serveur', 'Rejected by the server'],
+  off_failed_hint: ['عمليات رفضها السيرفر (مثلاً رصيد غير كافٍ أو يوم مُغلق): صحّحها بإعادة إدخالها ثم احذفها من هنا.', 'Opérations refusées par le serveur (solde insuffisant, journée clôturée…) : ressaisissez-les correctement puis supprimez-les ici.', 'Operations rejected by the server (low balance, closed day…): enter them again correctly, then delete them here.'],
+  off_delete_q: ['حذف هذه العملية من الجهاز؟ لن تُرسل إلى السيرفر.', 'Supprimer cette opération de l’appareil ? Elle ne sera pas envoyée.', 'Delete this operation from the device? It will not be sent.'],
+  off_delete: ['حذف', 'Supprimer', 'Delete'],
+  off_retry: ['إعادة المحاولة', 'Réessayer', 'Retry'],
+  off_need_net: ['هذا الإجراء يحتاج اتصالاً بالسيرفر', 'Cette action nécessite la connexion au serveur', 'This action needs the server connection'],
+  off_page_hint: ['هذه الصفحة تحتاج الاتصال بالسيرفر. يمكنك تسجيل عمليات جديدة الآن: تُحفظ على هذا الجهاز وتُرسل تلقائياً عند عودة الاتصال.', 'Cette page nécessite le serveur. Vous pouvez saisir des opérations maintenant : elles sont gardées sur cet appareil et envoyées automatiquement au retour de la connexion.', 'This page needs the server. You can still record new operations: they are kept on this device and sent automatically.'],
+  off_back: ['عاد الاتصال بالسيرفر', 'Connexion au serveur rétablie', 'Server connection restored'],
 } as const;
 
 export type Key = keyof typeof D;

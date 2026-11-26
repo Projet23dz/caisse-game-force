@@ -1,4 +1,4 @@
-import { authImg, can, donut, empty, fmtDate, get, h, icon, isAdmin, lineChart, me, money, moneyEl, pct, opPill, PALETTE, typeLabel } from '../core.js';
+import { authImg, can, donut, isNetworkError, empty, fmtDate, get, h, icon, isAdmin, lineChart, me, money, moneyEl, pct, opPill, PALETTE, typeLabel } from '../core.js';
 import { t, tk } from '../i18n.js';
 import { openBusinessForm } from './businesses.js';
 import { openTransaction } from './transactions.js';
@@ -9,7 +9,8 @@ export function bizLogo(b: { id: string; code: string; logo_path?: string | null
 }
 
 export async function dashboardPage(root: HTMLElement) {
-  const [d, recent] = await Promise.all([get('/dashboard'), get('/transactions', { limit: 6 })]);
+  // hors connexion : tableau de bord gardé sur l'appareil, sans la liste des dernières opérations
+  const [d, recent] = await Promise.all([get('/dashboard'), get('/transactions', { limit: 6 }).catch((e) => { if (isNetworkError(e)) return { items: [] }; throw e; })]);
   const k = d.kpis;
   root.append(
     h('div', { class: 'page-head' }, h('div', null, h('h1', null, t('nav_dashboard')), h('p', null, t('dash_sub'))),

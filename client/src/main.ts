@@ -1,6 +1,7 @@
 // Point d'entrée : session, routeur, gabarit (barre latérale + barre supérieure), connexion.
-import { api, ApiError, authImg, can, clear, deviceName, errMsg, field, fmtDate, getRefresh, gfLogo, get, h, icon, input, isAdmin, loadOpTypes, type Me, passwordInput, post, session, setRefresh, setToken, spinner, today, toast, tryRefresh } from './core.js';
+import { api, ApiError, authImg, can, clear, clearReadCache, confirmBox, deviceName, errMsg, isNetworkError, field, fmtDate, getRefresh, gfLogo, get, h, icon, input, isAdmin, loadOpTypes, type Me, net, passwordInput, post, session, setRefresh, setToken, spinner, today, toast, tryRefresh } from './core.js';
 import { getLang, type Lang, setLang, t } from './i18n.js';
+import { offlineBanner, openOutbox, pendingCount, startOutbox } from './offline.js';
 import { activityPage } from './pages/activity.js';
 import { auditPage } from './pages/audit.js';
 import { businessPage, businessesPage, categoriesPage } from './pages/businesses.js';
@@ -9,7 +10,7 @@ import { dashboardPage } from './pages/dashboard.js';
 import { payrollPage } from './pages/payroll.js';
 import { reportsPage } from './pages/reports.js';
 import { settingsPage } from './pages/settings.js';
-import { transactionsPage, transfersPage } from './pages/transactions.js';
+import { openTransaction, openTransfer, transactionsPage, transfersPage } from './pages/transactions.js';
 import { treasuryPage } from './pages/treasury.js';
 import { usersPage } from './pages/users.js';
 
@@ -104,8 +105,9 @@ function buildShell() {
   const content = h('div', { class: 'content', id: 'content' });
   // téléphone : voile derrière le menu ouvert ; un appui ferme le menu
   const backdrop = h('div', { class: 'backdrop', 'aria-hidden': 'true', onclick: () => side.classList.remove('open') });
-  clear(app).appendChild(h('div', { class: 'app' }, side, backdrop, h('div', { class: 'main' }, top, h('main', null, content))));
+  clear(app).appendChild(h('div', { class: 'app' }, side, backdrop, h('div', { class: 'main' }, top, offlineBanner(), h('main', null, content))));
   shell = { content, side, bell, act };
+  startOutbox();   // 1.3.6 : opérations gardées hors connexion → envoi
   refreshBell();
   void refreshActivity();
   void checkUpdateBanner();
@@ -139,6 +141,9 @@ export async function refreshBell() {
 }
 
 async function logout() {
+  const n = pendingCount();
+  if (n && !(await confirmBox(`${n} ${t('off_pending')} — ${t('off_hint')}`, { yes: t('logout') }))) return;
+  clearReadCache();
   const rt = await getRefresh();
   if (rt) await post('/auth/logout', { refreshToken: rt }).catch(() => undefined);
   await setRefresh(''); setToken(''); session.me = null; shell = null; location.hash = '#/login';
@@ -177,9 +182,22 @@ async function route(soft = false) {
   } catch (e) {
     if (seq !== routeSeq) return;
     if (soft) { toast(errMsg(e), 'err'); return; }
+    // 1.3.6 : page indisponible hors connexion → la saisie reste possible (gardée sur l'appareil)
+    if (isNetworkError(e)) { clear(content).appendChild(offlinePanel()); return; }
     clear(content).appendChild(h('div', { class: 'err-box' }, errMsg(e)));
   }
   window.scrollTo(0, soft ? y : 0);
+}
+
+function offlinePanel() {
+  return h('div', { class: 'card col off-panel', style: 'gap:14px;align-items:flex-start' },
+    h('div', { class: 'row' }, icon('offline', 22), h('h2', { style: 'margin:0' }, t('off_title'))),
+    h('p', { class: 'muted', style: 'margin:0' }, t('off_page_hint')),
+    h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap' },
+      h('button', { class: 'btn pri', onclick: () => openTransaction() }, icon('plus'), t('new_op')),
+      can('transfer') ? h('button', { class: 'btn', onclick: () => void openTransfer() }, icon('transfer'), t('new_transfer')) : null,
+      h('button', { class: 'btn', onclick: () => openOutbox() }, icon('upload'), t('off_list')),
+      h('button', { class: 'btn ghost', onclick: () => route() }, icon('refresh'), t('refresh'))));
 }
 
 // ------------------------------------------------------------------ actualisation (1.3.3)
@@ -192,7 +210,7 @@ const busyUi = () => Boolean(document.querySelector('.modal-back') || shell?.sid
   (document.activeElement && /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)));
 let refreshing = false;
 export async function refreshNow(manual = false) {
-  if (!shell || refreshing || (!manual && busyUi())) return;
+  if (!shell || refreshing || (!manual && (busyUi() || !net.online))) return;
   refreshing = true;
   try {
     window.dispatchEvent(new Event('cp:changed'));              // opérations, compteur d'activité
@@ -288,6 +306,7 @@ function loginPage() {
       const r = await post<{ token: string; refreshToken?: string; remembered?: boolean; user: { mustChangePassword: boolean; locale: Lang; theme: string } }>('/auth/login',
         { username: u.value.trim(), password: pw.input.value, remember: remember.checked, ...(remember.checked ? { deviceName: await deviceName() } : {}) });
       try { localStorage.setItem('cp.lastUser', u.value.trim()); localStorage.setItem('cp.remember', remember.checked ? '1' : '0'); } catch { /* */ }
+      clearReadCache();   // copie locale de l'utilisateur précédent
       setToken(r.token); setLang(r.user.locale); applyTheme(r.user.theme);
       await setRefresh(r.refreshToken ?? '');
       if (remember.checked && r.remembered === false) toast(t('remember_refused'));
@@ -330,6 +349,9 @@ function changePasswordPage(current = '', remember = false) {
 // ------------------------------------------------------------------ démarrage
 try { setLang((localStorage.getItem('cp.lang') as Lang) || 'ar'); applyTheme(localStorage.getItem('cp.theme') || undefined); } catch { setLang('ar'); }
 window.addEventListener('hashchange', () => route());
+// 1.3.6 : copie de l'interface sur l'appareil → l'application s'ouvre même sans serveur (application Windows, navigateur en HTTPS/localhost).
+// Le téléphone Android garde sa copie lui-même (application).
+try { if ('serviceWorker' in navigator && window.isSecureContext) void navigator.serviceWorker.register('/sw.js').catch(() => undefined); } catch { /* */ }
 export const rerender = () => route();
 export function resetShell() { shell = null; }
 route();

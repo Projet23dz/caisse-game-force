@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { type Db, many, one, Where } from '../db';
 import { AppError, notFound } from '../errors';
 import { sendStored, store, uploader } from '../files';
-import { ctx, type Deps, pageQuery, param, zDate, zDateTime, zId, zMoney, zOptText, zReason } from '../http';
+import { ctx, type Deps, idemKey, idempotent, pageQuery, param, zDate, zDateTime, zId, zMoney, zOptText, zReason } from '../http';
 
 export const SIMPLE_TYPES = ['income', 'expense', 'purchase', 'deposit', 'withdrawal'] as const;
 const ALL_TYPES = [...SIMPLE_TYPES, 'transfer_out', 'transfer_in', 'adjustment_in', 'adjustment_out', 'salary_advance', 'salary_payment'] as const;
@@ -106,7 +106,8 @@ export function transactionRoutes(deps: Deps): Router {
 
   r.post('/transactions', async (req, res) => {
     const b = createBody.parse(req.body);
-    const row = await deps.db.tx(ctx(req), async (db) => {
+    const key = idemKey(req);
+    const out = await deps.db.tx(ctx(req), (db) => idempotent(db, key, 'POST /transactions', async () => {
       let supplierId = b.supplierId ?? null;
       if (b.newSupplier) {
         const existing = await one<{ id: string }>(db, 'SELECT id FROM suppliers WHERE business_id = $1 AND lower(name) = lower($2)',
@@ -122,8 +123,9 @@ export function transactionRoutes(deps: Deps): Router {
         [b.businessId, b.accountId, b.categoryId ?? null, b.type, b.amount, b.date ?? null, b.paymentMethodId ?? null,
           supplierId, b.description, b.reference, b.notes]);
       return ledgerRow(db, t!.id);
-    });
-    res.status(201).json(row);
+    }));
+    if (out.replayed) res.setHeader('Idempotent-Replayed', 'true');
+    res.status(201).json(out.body);
   });
 
   // Ventilation : une dépense / un achat réparti entre plusieurs activités, depuis un même compte
@@ -137,12 +139,15 @@ export function transactionRoutes(deps: Deps): Router {
       description: zOptText(300), reference: zOptText(100), notes: zOptText(1000),
       parts: z.array(z.object({ businessId: zId, categoryId: zId, amount: zMoney, supplierId: zId.nullish() })).min(2).max(20),
     }).parse(req.body);
-    const rows = await deps.db.tx(ctx(req), async (db) => {
+    const key = idemKey(req);
+    const out = await deps.db.tx(ctx(req), (db) => idempotent(db, key, 'POST /transactions/split', async () => {
       const s = await one<{ id: string }>(db, 'SELECT create_split($1,$2,$3::jsonb,coalesce($4::timestamptz, now()),$5,$6,$7,$8,$9) AS id',
         [b.accountId, b.type, JSON.stringify(b.parts), b.date ?? null, b.description, b.reference, b.notes, b.paymentMethodId ?? null, b.total]);
-      return many(db, 'SELECT * FROM v_ledger WHERE split_id = $1 ORDER BY business_name', [s!.id]);
-    });
-    res.status(201).json({ splitId: rows[0]?.split_id ?? null, items: rows });
+      const rows = await many(db, 'SELECT * FROM v_ledger WHERE split_id = $1 ORDER BY business_name', [s!.id]);
+      return { splitId: (rows[0]?.split_id as string | undefined) ?? null, items: rows };
+    }));
+    if (out.replayed) res.setHeader('Idempotent-Replayed', 'true');
+    res.status(201).json(out.body);
   });
 
   r.patch('/transactions/:id', async (req, res) => {

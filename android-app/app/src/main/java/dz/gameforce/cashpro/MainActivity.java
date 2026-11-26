@@ -22,6 +22,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -35,6 +36,15 @@ import android.widget.Toast;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.json.JSONArray;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
@@ -155,7 +165,13 @@ public class MainActivity extends Activity {
             try {
                 String base = normalize(server);
                 setStatus("جارٍ التحقق من السيرفر… — Vérification du serveur…", MU);
-                waitHealth(base, 15);
+                boolean offlineReady = uiCached(base);
+                try {
+                    waitHealth(base, offlineReady ? 5 : 15);
+                } catch (Exception e) {
+                    // 1.3.5 : interface déjà gardée sur le téléphone → ouverture hors connexion
+                    if (!offlineReady) throw e;
+                }
                 origin = base;
                 runOnUiThread(() -> showWeb(base));
             } catch (Exception e) {
@@ -240,6 +256,17 @@ public class MainActivity extends Activity {
                 if (origin != null && url.startsWith(origin + "/")) return false;
                 try { startActivity(new Intent(Intent.ACTION_VIEW, req.getUrl())); } catch (Exception ignored) { }
                 return true;
+            }
+
+            // 1.3.5 : fichiers de l'interface servis depuis la copie du téléphone quand le serveur ne répond pas
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest req) {
+                return interceptUi(req);
+            }
+
+            @Override
+            public void onPageFinished(WebView v, String url) {
+                if (origin != null && url != null && url.startsWith(origin + "/")) precacheUi(origin);
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
@@ -330,6 +357,144 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String version() { return appVersion(); }
+    }
+
+
+    // ------------------------------------------------------------------ 1.3.5 : mode hors connexion
+    // Copie des fichiers de l'interface (HTML, JS, CSS, icônes ; jamais /api) dans la mémoire de l'application.
+    // Réseau d'abord : si le serveur répond, sa version est affichée et gardée ; sinon la copie est utilisée.
+    // Les opérations saisies hors connexion sont gardées par l'interface elle-même et envoyées au retour du réseau.
+    private File uiDir(String base) {
+        return new File(getFilesDir(), "ui/" + sha1(base));
+    }
+
+    private boolean uiCached(String base) {
+        return new File(uiDir(base), "index").isFile();
+    }
+
+    private static String sha1(String s) {
+        try {
+            byte[] d = MessageDigest.getInstance("SHA-1").digest(s.getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 8; i++) sb.append(String.format("%02x", d[i]));
+            return sb.toString();
+        } catch (Exception e) { return "default"; }
+    }
+
+    /** Nom de fichier de la copie : « index » pour les pages (routes sans extension), sinon le chemin aplati. */
+    private static String uiKey(String path) {
+        if (path == null || path.isEmpty() || path.equals("/") || path.equals("/index.html")) return "index";
+        String last = path.substring(path.lastIndexOf('/') + 1);
+        if (!last.contains(".")) return "index";
+        return path.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private static String mimeOf(String key) {
+        if (key.equals("index") || key.endsWith(".html")) return "text/html";
+        if (key.endsWith(".js")) return "application/javascript";
+        if (key.endsWith(".css")) return "text/css";
+        if (key.endsWith(".svg")) return "image/svg+xml";
+        if (key.endsWith(".png")) return "image/png";
+        if (key.endsWith(".json")) return "application/json";
+        if (key.endsWith(".ico")) return "image/x-icon";
+        return "application/octet-stream";
+    }
+
+    private static byte[] readAll(InputStream in) throws Exception {
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        byte[] buf = new byte[16384];
+        int n;
+        while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+        in.close();
+        return bo.toByteArray();
+    }
+
+    private void saveUi(String base, String key, byte[] data) {
+        try {
+            File dir = uiDir(base);
+            dir.mkdirs();
+            File tmp = new File(dir, key + ".tmp");
+            try (FileOutputStream os = new FileOutputStream(tmp)) { os.write(data); }
+            tmp.renameTo(new File(dir, key));
+        } catch (Exception ignored) { }
+    }
+
+    private WebResourceResponse interceptUi(WebResourceRequest req) {
+        final String base = origin;
+        if (base == null || !"GET".equalsIgnoreCase(req.getMethod())) return null;
+        String url = req.getUrl().toString();
+        if (!url.startsWith(base + "/")) return null;
+        String path = req.getUrl().getPath();
+        if (path == null) path = "/";
+        if (path.startsWith("/api/") || path.equals("/sw.js") || path.equals("/offline-manifest.json")) return null;
+        String key = uiKey(path);
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(5000);
+            c.setReadTimeout(10000);
+            c.setUseCaches(false);
+            c.setRequestProperty("Cache-Control", "no-cache");
+            int code = c.getResponseCode();
+            if (code < 200 || (code >= 300 && code < 400) || code > 599) return null;   // non représentable : la WebView s'en charge
+            InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+            byte[] data = in == null ? new byte[0] : readAll(in);
+            Map<String, String> headers = new HashMap<>();
+            for (Map.Entry<String, List<String>> h : c.getHeaderFields().entrySet()) {
+                String k = h.getKey();
+                if (k == null || h.getValue() == null || h.getValue().isEmpty()) continue;
+                String lk = k.toLowerCase();
+                if (lk.equals("content-encoding") || lk.equals("content-length") || lk.equals("transfer-encoding") || lk.equals("connection")) continue;
+                headers.put(k, h.getValue().get(0));
+            }
+            String ct = c.getContentType();
+            String mime = ct == null ? mimeOf(key) : ct.split(";")[0].trim();
+            String enc = ct != null && ct.toLowerCase().contains("charset=") ? ct.substring(ct.toLowerCase().indexOf("charset=") + 8).trim() : "UTF-8";
+            if (code == 200) saveUi(base, key, data);
+            String msg = c.getResponseMessage();
+            return new WebResourceResponse(mime, enc, code, msg == null || msg.isEmpty() ? "OK" : msg, headers, new ByteArrayInputStream(data));
+        } catch (Exception e) {
+            File f = new File(uiDir(base), key);
+            if (!f.isFile()) return null;
+            try {
+                Map<String, String> headers = new HashMap<>();
+                headers.put("Cache-Control", "no-store");
+                return new WebResourceResponse(mimeOf(key), "UTF-8", 200, "OK", headers, new FileInputStream(f));
+            } catch (Exception e2) { return null; }
+        }
+    }
+
+    /** Après un chargement réussi : copie complète de l'interface (liste fournie par le serveur), si elle a changé. */
+    private volatile boolean precaching = false;
+    private void precacheUi(final String base) {
+        if (precaching) return;
+        precaching = true;
+        new Thread(() -> {
+            try {
+                HttpURLConnection c = (HttpURLConnection) new URL(base + "/offline-manifest.json").openConnection();
+                c.setConnectTimeout(5000);
+                c.setReadTimeout(10000);
+                if (c.getResponseCode() != 200) return;
+                JSONObject m = new JSONObject(new String(readAll(c.getInputStream()), "UTF-8"));
+                String version = m.optString("version");
+                String prefKey = "ui_version_" + sha1(base);
+                if (version.equals(prefs.getString(prefKey, "")) && uiCached(base)) return;
+                JSONArray files = m.getJSONArray("files");
+                boolean all = true;
+                for (int i = -1; i < files.length(); i++) {
+                    String p = i < 0 ? "/" : files.getString(i);
+                    try {
+                        HttpURLConnection f = (HttpURLConnection) new URL(base + p).openConnection();
+                        f.setConnectTimeout(5000);
+                        f.setReadTimeout(15000);
+                        f.setUseCaches(false);
+                        if (f.getResponseCode() == 200) saveUi(base, uiKey(p), readAll(f.getInputStream()));
+                        else all = false;
+                    } catch (Exception e) { all = false; }
+                }
+                if (all) prefs.edit().putString(prefKey, version).apply();
+            } catch (Exception ignored) {
+            } finally { precaching = false; }
+        }).start();
     }
 
     // ------------------------------------------------------------------ petits utilitaires d'interface

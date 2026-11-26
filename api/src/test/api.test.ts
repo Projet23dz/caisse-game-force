@@ -730,6 +730,50 @@ describe('CashPro API', () => {
     assert.equal(expectOk(await api('PUT', '/api/admin/backup/offsite', tokens.admin, { path: null })).path, null);
   });
 
+  test('mode hors connexion : renvoi avec Idempotency-Key sans doublon (1.3.6)', async () => {
+    const send = async (token: string, url: string, body: unknown, key: string) => {
+      const r = await fetch(base + url, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'idempotency-key': key }, body: JSON.stringify(body) });
+      return { status: r.status, replayed: r.headers.get('idempotent-replayed'), body: await r.json() as any };
+    };
+    const c = await cats(tokens.admin, GF);
+    const gf = await accounts(tokens.admin, GF);
+    const before = await bal(GF, 'bank');
+    const key = crypto.randomUUID();
+    const op = { businessId: GF, accountId: gf.bank.id, type: 'income', amount: 750, categoryId: c['Ventes consoles'], description: 'Vente hors connexion',
+      date: new Date(Date.now() - 60_000).toISOString() };
+    // deux envois simultanés puis un renvoi : une seule opération
+    const [a, b] = await Promise.all([send(tokens.admin, '/api/transactions', op, key), send(tokens.admin, '/api/transactions', op, key)]);
+    assert.equal(a.status, 201, JSON.stringify(a.body)); assert.equal(b.status, 201, JSON.stringify(b.body));
+    assert.equal(a.body.id, b.body.id);
+    const again = await send(tokens.admin, '/api/transactions', op, key);
+    assert.equal(again.status, 201); assert.equal(again.replayed, 'true'); assert.equal(again.body.id, a.body.id); assert.equal(again.body.ref_no, a.body.ref_no);
+    assert.equal(await bal(GF, 'bank'), before + 750, 'enregistrée une seule fois');
+    const found = expectOk(await api('GET', '/api/transactions?q=Vente hors connexion', tokens.admin));
+    assert.equal(found.total, 1);
+    // la clé d'un autre utilisateur ou d'un autre type d'envoi est refusée
+    const other = await send(tokens.samir, '/api/transactions', op, key);
+    assert.equal(other.status, 409); assert.equal(other.body.error.code, 'CP105');
+    const tr = { fromAccountId: gf.bank.id, toAccountId: gf.ccp.id, amount: 100, description: 'Versement hors connexion' };
+    assert.equal((await send(tokens.admin, '/api/transfers', tr, key)).body.error.code, 'CP105');
+    // virement : même protection
+    const k2 = crypto.randomUUID();
+    const t1 = await send(tokens.admin, '/api/transfers', tr, k2);
+    const t2 = await send(tokens.admin, '/api/transfers', tr, k2);
+    assert.equal(t1.status, 201, JSON.stringify(t1.body)); assert.equal(t2.body.id, t1.body.id); assert.equal(t2.replayed, 'true');
+    assert.equal(await bal(GF, 'bank'), before + 750 - 100);
+    // opération refusée par la base : la clé n'est pas gardée (un nouvel essai corrigé passe)
+    const k3 = crypto.randomUUID();
+    const bad = await send(tokens.admin, '/api/transactions', { ...op, amount: 100, categoryId: c['Transport'] }, k3);
+    assert.equal(bad.status, 422); assert.equal(bad.body.error.code, 'CP023');
+    const fixed = await send(tokens.admin, '/api/transactions', { ...op, amount: 100 }, k3);
+    assert.equal(fixed.status, 201, JSON.stringify(fixed.body)); assert.equal(fixed.replayed, null);
+    // clé invalide
+    const inv = await send(tokens.admin, '/api/transactions', op, 'pas-une-cle');
+    assert.equal(inv.status, 422);
+    // sans clé : fonctionnement inchangé
+    expectOk(await api('POST', '/api/transactions', tokens.admin, { ...op, amount: 1 }), 201);
+  });
+
   test('sécurité des comptes : désactivation et verrouillage', async () => {
     expectOk(await api('PATCH', `/api/users/${ids.karim}`, tokens.admin, { isActive: false, reason: 'Départ' }));
     expectErr(await api('POST', '/api/auth/login', null, { username: 'karim', password: 'Karim2027x' }), 403, 'ACCOUNT_DISABLED');
